@@ -1,0 +1,3 @@
+MoT 20 Bytes
+To do LoRa Site Survey with Multiples LoRa Nodes (End Devices)
+Inserption of Data Positioning to do Shadowing analyzes Level 6
