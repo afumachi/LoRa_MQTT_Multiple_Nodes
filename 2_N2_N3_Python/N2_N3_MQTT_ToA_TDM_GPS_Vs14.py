@@ -1,6 +1,7 @@
 
 # ===== Bibliotecas =====
 
+
 '''
 # Bibliotecas MQTT anteriores a implemetação Gemini para reconnect MQTT Broker
 #import paho.mqtt.client as mqtt
@@ -159,7 +160,6 @@ caminho_dados = os.path.join(PASTA_ARMAZENAMENTO, "Dados_Brutos")
 os.makedirs(caminho_dados, exist_ok=True)
 os.makedirs(caminho_parametros, exist_ok=True)
 caminho_led = os.path.join(caminho_parametros, "cmd_led_amarelo.txt")
-
 
 # Definindo o caminho do arquivo CSV com base no diretório nivel4
 caminho_csv_end_devices = os.path.join(dir_nivel4, 'end_devices_net_par.csv')
@@ -718,7 +718,7 @@ try:
 
                     downlink()
                                           
-                    time.sleep(toa_entre_medidas)
+                    time.sleep(toa_entre_medidas/2)
                     pacote_recebido = 0
 
                     uplink()
