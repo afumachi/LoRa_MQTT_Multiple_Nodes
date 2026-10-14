@@ -233,6 +233,257 @@ while True:
         # Inicializa dicionários organizados por ID do End Device
         dados_dev = {
             dev_id: {
+                "rssi_down": [],
+                "rssi_up": [],
+                "snr_down": [],
+                "snr_up": [],
+                "psr": [],
+                "taxa_teorica": [],
+                "taxa_calculada": [],
+                "gps_registros": [],  # Lista para armazenar as coordenadas de cada pacote recebido
+                "total_pacotes": 0,
+                "pacotes_recebidos": 0,
+                "pacotes_perdidos": 0,
+            }
+            for dev_id in lista_end_devices
+        }
+
+        for i in range(1, len(linhas)):
+            partes = linhas[i].split(",")
+            
+            try:
+                # Endereço do End Device está em DL_B8 -> partes[10]
+                dev_id = int(partes[10])
+                UL_B8 = int(partes[30])  # Endereço do Gateway
+                UL_B19 = int(partes[41]) # Tipo PKLoRa
+            except (IndexError, ValueError):
+                continue
+
+            # Se o dispositivo não estiver no dicionário, inclui dinamicamente
+            if dev_id not in dados_dev:
+                dados_dev[dev_id] = {
+                    "rssi_down": [],
+                    "rssi_up": [],
+                    "snr_down": [],
+                    "snr_up": [],
+                    "psr": [],
+                    "taxa_teorica": [],
+                    "taxa_calculada": [],
+                    "gps_registros": [],
+                    "total_pacotes": 0,
+                    "pacotes_recebidos": 0,
+                    "pacotes_perdidos": 0,
+                }
+
+            dados_dev[dev_id]["total_pacotes"] += 1
+
+            pacote_recebido = 0
+            for j in range(15):
+                if ((int(partes[23 + j]) != 9) and (UL_B8 == 0) and (UL_B19 == 1)):
+                    pacote_recebido = 1
+                    break
+            
+            if (pacote_recebido == 1):
+                dados_dev[dev_id]["pacotes_recebidos"] += 1
+
+                # RSSI / SNR Downlink e Uplink
+                UL_B0 = int(partes[22])
+                if UL_B0 == 127:
+                    RSSI_DL = -10.5
+                elif 0 <= UL_B0 < 127:
+                    RSSI_DL = (UL_B0 / 2) - 74
+                elif 128 <= UL_B0 <= 255:
+                    RSSI_DL = ((UL_B0 - 256) / 2) - 74
+
+                UL_B1 = int(partes[23])
+                SNR_DL = round(((UL_B1 / 4) - 30), 2)
+
+                UL_B2 = int(partes[24])
+                if UL_B2 == 127:
+                    RSSI_UL = -10.5
+                elif 0 <= UL_B2 < 127:
+                    RSSI_UL = (UL_B2 / 2) - 74
+                elif 128 <= UL_B2 <= 255:
+                    RSSI_UL = ((UL_B2 - 256) / 2) - 74
+    
+                UL_B3 = int(partes[25])
+                SNR_UL = round(((UL_B3 / 4) - 30), 2)
+
+                dados_dev[dev_id]["rssi_down"].append(RSSI_DL)
+                dados_dev[dev_id]["rssi_up"].append(RSSI_UL)
+                dados_dev[dev_id]["snr_down"].append(SNR_DL)
+                dados_dev[dev_id]["snr_up"].append(SNR_UL)
+
+                # =========================================================
+                # DECODIFICAÇÃO DOS BYTES DE GPS (UL_B20 a UL_B29 -> partes 42 a 51)
+                # =========================================================
+                try:
+                    # Reconstrói o inteiro de 32 bits com sinal para Latitude (partes 42 a 45)
+                    lat_raw = (
+                        (int(partes[42]) << 24) |
+                        (int(partes[43]) << 16) |
+                        (int(partes[44]) << 8)  |
+                        int(partes[45])
+                    )
+                    # Ajusta para complemento de dois se for negativo (32 bits)
+                    if lat_raw & 0x80000000:
+                        lat_raw -= 0x100000000
+                    latitude = lat_raw / 1e6
+
+                    # Reconstrói o inteiro de 32 bits com sinal para Longitude (partes 46 a 49)
+                    lon_raw = (
+                        (int(partes[46]) << 24) |
+                        (int(partes[47]) << 16) |
+                        (int(partes[48]) << 8)  |
+                        int(partes[49])
+                    )
+                    if lon_raw & 0x80000000:
+                        lon_raw -= 0x100000000
+                    longitude = lon_raw / 1e6
+
+                    # Reconstrói o inteiro de 16 bits com sinal para Altitude (partes 50 e 51)
+                    alt_raw = (
+                        (int(partes[50]) << 8) |
+                        int(partes[51])
+                    )
+                    if alt_raw & 0x8000:
+                        alt_raw -= 0x10000
+                    altitude = float(alt_raw)
+
+                    # Calcula a distância 3D em relação ao Gateway atual
+                    distancia_3d = calcula_distancia_enlace(GW_LAT, GW_LON, GW_ALT, latitude, longitude, altitude)
+
+                    # Salva na lista de registros GPS do dispositivo (incluindo a distância calculada)
+                    dados_dev[dev_id]["gps_registros"].append((latitude, longitude, altitude, distancia_3d))
+
+                except (IndexError, ValueError) as e:
+                    print(f"[ERRO GPS] Falha ao decodificar GPS do nó {dev_id}: {e}")
+
+            else:
+                dados_dev[dev_id]["pacotes_perdidos"] += 1
+
+            # PSR do dispositivo
+            PSR = (
+                dados_dev[dev_id]["pacotes_recebidos"]
+                / dados_dev[dev_id]["total_pacotes"]
+            ) * 100
+            dados_dev[dev_id]["psr"].append(PSR)
+
+            # Cálculo de Taxa com base na Tabela LUT pelo Pacote Byte 0 (partes[2])
+            try:
+                lut_index = int(partes[2])
+                if 0 <= lut_index < len(RADIO_CONFIG_LUT):
+                    sf_pacote, bw_hz_pacote, cr_den_pacote = RADIO_CONFIG_LUT[lut_index]
+                    bw_pacote_khz = bw_hz_pacote // 1000
+                    cr_pacote = cr_den_pacote - 4
+
+                    TAXA_TEORICA, TAXA_CALCULADA = calcula_taxa_canal(
+                        sf_pacote, bw_pacote_khz, cr_pacote, PSR
+                    )
+                else:
+                    TAXA_TEORICA, TAXA_CALCULADA = None, None
+            except (ValueError, ZeroDivisionError, IndexError):
+                TAXA_TEORICA, TAXA_CALCULADA = None, None
+
+            dados_dev[dev_id]["taxa_teorica"].append(TAXA_TEORICA)
+            dados_dev[dev_id]["taxa_calculada"].append(TAXA_CALCULADA)
+
+        # Gravação dos arquivos .tmp específicos para cada End Device
+        for dev_id, info in dados_dev.items():
+            if info["total_pacotes"] == 0:
+                continue
+
+            arquivo_rssi = os.path.join(pasta_dados_processados, f"{dev_id}_rssi.tmp")
+            arquivo_psr = os.path.join(pasta_dados_processados, f"{dev_id}_psr.tmp")
+            arquivo_stats = os.path.join(pasta_dados_processados, f"{dev_id}_stats.tmp")
+            arquivo_taxa = os.path.join(pasta_dados_processados, f"{dev_id}_taxa_dados.tmp")
+            arquivo_gps_dev = os.path.join(pasta_dados_processados, f"{dev_id}_gps.tmp") # <--- Arquivo GPS por ID
+
+            # Grava as coordenadas GPS pacote por pacote recebido
+            with open(arquivo_gps_dev, "w") as f_gps:
+                for lat, lon, alt, dist in info["gps_registros"]:
+                    print(f"{lat:.6f} {lon:.6f} {alt:.1f} {dist}", file=f_gps)
+
+            '''
+
+            # Também atualiza o gps.tmp geral (compatibilidade com N6) se houver dados novos
+            if info["gps_registros"]:
+                with open(os.path.join(pasta_dados_processados, "gps.tmp"), "w") as f_gps_geral:
+                    for lat, lon, alt, dist in info["gps_registros"]:
+                        print(f"{lat:.6f} {lon:.6f} {alt:.1f} {dist}", file=f_gps_geral)
+
+            '''
+            # (Demais gravações de RSSI, PSR, Stats e Taxas continuam inalteradas...)
+
+            rssi_down_min = min(info["rssi_down"]) if info["rssi_down"] else None
+            rssi_down_max = max(info["rssi_down"]) if info["rssi_down"] else None
+            rssi_up_min = min(info["rssi_up"]) if info["rssi_up"] else None
+            rssi_up_max = max(info["rssi_up"]) if info["rssi_up"] else None
+            snr_down_min = min(info["snr_down"]) if info["snr_down"] else None
+            snr_down_max = max(info["snr_down"]) if info["snr_down"] else None
+            snr_up_min = min(info["snr_up"]) if info["snr_up"] else None
+            snr_up_max = max(info["snr_up"]) if info["snr_up"] else None
+
+
+            
+            with open(arquivo_rssi, "w") as f_rssi:
+                for idx in range(len(info["rssi_down"])):
+                    print(
+                        info["rssi_down"][idx],
+                        info["rssi_up"][idx],
+                        info["snr_down"][idx],
+                        info["snr_up"][idx],
+                        file=f_rssi,
+                    )
+
+            # Grava PSR
+            with open(arquivo_psr, "w") as f_psr:
+                for val in info["psr"]:
+                    print(val, file=f_psr)
+
+            # Grava Taxa de Dados
+            with open(arquivo_taxa, "w") as f_taxa:
+                for idx in range(len(info["taxa_teorica"])):
+                    print(
+                        info["taxa_teorica"][idx],
+                        info["taxa_calculada"][idx],
+                        file=f_taxa,
+                    )
+
+            # Grava Estatísticas
+            with open(arquivo_stats, "w") as f_stats:
+                print(
+                    rssi_down_min,
+                    rssi_down_max,
+                    rssi_up_min,
+                    rssi_up_max,
+                    snr_down_min,
+                    snr_down_max,
+                    snr_up_min,
+                    snr_up_max,
+                    info["pacotes_perdidos"],
+                    file=f_stats,
+                )
+
+            print(
+                f"[N5] Sensor ID = {dev_id} | Pacotes = {info['total_pacotes']} "
+                f"| Recebidos = {info['pacotes_recebidos']} | Perdidos = {info['pacotes_perdidos']} "
+                f"| PSR = {info['psr'][-1] if info['psr'] else 0:.2f}%"
+            )
+
+        time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\n[Ctrl + C] Interrompido pelo usuário.")
+        break
+    
+#===========================================================
+
+'''
+
+        # Inicializa dicionários organizados por ID do End Device
+        dados_dev = {
+            dev_id: {
 
                 
                 "rssi_down": [],
@@ -254,7 +505,7 @@ while True:
             partes = linhas[i].split(",")
             
             # Endereço do End Device está em DL_B8 -> partes[10]
-            dev_id = int(partes[10]) #if len(partes) > 52 else int(partes[10])
+            dev_id = int(partes[10])
 
             # Se o dispositivo não estiver no dicionário, inclui dinamicamente
             if dev_id not in dados_dev:
@@ -281,7 +532,7 @@ while True:
                 # Se a linha estiver corrompida ou incompleta, ignora esta linha e passa para a próxima
                 continue
             for j in range(15):
-                if (int(partes[23 + j]) != 9): # and (UL_B8 == 0) and (UL_B19 == 1)):
+                if ((int(partes[23 + j]) != 9) and (UL_B8 == 0) and (UL_B19 == 1)):
                     pacote_recebido = 1
                     break
             
@@ -305,14 +556,7 @@ while True:
                 # Esta faixa gera bytes de 128 (para -138 dBm) até 255 (ponto logo abaixo de -74 dBm)
                 elif 128 <= UL_B0 <= 255:
                     RSSI_DL = ((UL_B0 - 256) / 2) - 74
-    
-                '''
-                RSSI_DL = (
-                    ((UL_B0 - 256) / 2.0) - 74
-                    if UL_B0 > 128
-                    else (UL_B0 / 2.0) - 74
-                )
-                '''
+
 
                 UL_B1 = int(partes[23])
                 SNR_DL = round(((UL_B1 / 4) - 30), 2)
@@ -335,14 +579,6 @@ while True:
                 elif 128 <= UL_B2 <= 255:
                     RSSI_UL = ((UL_B2 - 256) / 2) - 74
     
-                '''
-                UL_B2 = int(partes[24])
-                RSSI_UL = (
-                    ((UL_B2 - 256) / 2.0) - 74
-                    if UL_B2 > 128
-                    else (UL_B2 / 2.0) - 74
-                )
-                '''
 
                 UL_B3 = int(partes[25])
                 SNR_UL = round(((UL_B3 / 4) - 30), 2)
@@ -400,56 +636,5 @@ while True:
             snr_up_min = min(info["snr_up"]) if info["snr_up"] else None
             snr_up_max = max(info["snr_up"]) if info["snr_up"] else None
 
-            # Grava RSSI / SNR
-            with open(arquivo_rssi, "w") as f_rssi:
-                for idx in range(len(info["rssi_down"])):
-                    print(
-                        info["rssi_down"][idx],
-                        info["rssi_up"][idx],
-                        info["snr_down"][idx],
-                        info["snr_up"][idx],
-                        file=f_rssi,
-                    )
-
-            # Grava PSR
-            with open(arquivo_psr, "w") as f_psr:
-                for val in info["psr"]:
-                    print(val, file=f_psr)
-
-            # Grava Taxa de Dados
-            with open(arquivo_taxa, "w") as f_taxa:
-                for idx in range(len(info["taxa_teorica"])):
-                    print(
-                        info["taxa_teorica"][idx],
-                        info["taxa_calculada"][idx],
-                        file=f_taxa,
-                    )
-
-            # Grava Estatísticas
-            with open(arquivo_stats, "w") as f_stats:
-                print(
-                    rssi_down_min,
-                    rssi_down_max,
-                    rssi_up_min,
-                    rssi_up_max,
-                    snr_down_min,
-                    snr_down_max,
-                    snr_up_min,
-                    snr_up_max,
-                    info["pacotes_perdidos"],
-                    file=f_stats,
-                )
-
-            print(
-                f"[N5] Sensor ID = {dev_id} | Pacotes = {info['total_pacotes']} "
-                f"| Recebidos = {info['pacotes_recebidos']} | Perdidos = {info['pacotes_perdidos']} "
-                f"| PSR = {info['psr'][-1] if info['psr'] else 0:.2f}%"
-            )
-
-        time.sleep(1)
-
-    except KeyboardInterrupt:
-        print("\n[Ctrl + C] Interrompido pelo usuário.")
-        break
-    
-#===========================================================
+        # Grava RSSI / SNR
+'''

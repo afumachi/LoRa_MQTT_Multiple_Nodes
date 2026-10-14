@@ -123,6 +123,26 @@ def ler_gateway_gps():
     return gw_lat, gw_lon, gw_alt
 
 def ler_ultimo_gps():
+    # get_tmp_path("gps.tmp") vai gerar dinamicamente o caminho com base no ID selecionado (ex: 1_gps.tmp, 2_gps.tmp)
+    caminho_arquivo = get_tmp_path("gps.tmp")
+    if not os.path.exists(caminho_arquivo):
+        return None
+    try:
+        with open(caminho_arquivo, "r") as f:
+            linhas = [line.strip() for line in f if line.strip()]
+            if not linhas:
+                return None
+            partes = linhas[-1].split()
+            # Espera-se: Latitude, Longitude, Altitude, Distância do Enlace
+            if len(partes) >= 4:
+                return (float(partes[0]), float(partes[1]), float(partes[2]), float(partes[3]))
+            elif len(partes) == 3:
+                return (float(partes[0]), float(partes[1]), float(partes[2]), None)
+    except Exception as e:
+        print(f"Erro ao ler o arquivo {caminho_arquivo}: {e}")
+        return None
+'''
+def ler_ultimo_gps():
     caminho_arquivo = get_tmp_path("gps.tmp")
     if not os.path.exists(caminho_arquivo):
         return None
@@ -139,7 +159,7 @@ def ler_ultimo_gps():
     except Exception as e:
         print(f"Erro ao ler o arquivo {caminho_arquivo}: {e}")
         return None
-
+'''
 
 # ===================== ATUALIZA GRÁFICOS (LORA) =====================
 def atualizar_grafico(ax1, ax2, ax3, ax4, canvas1, canvas2, canvas3, canvas4, raiz, label_down, label_up, label_snr_down, label_snr_up, label_psr, label_taxa_teorica, label_taxa_calculada):
@@ -449,7 +469,7 @@ tabela_pacotes = ttk.Treeview(frame_tabela_amostragem, columns=colunas_amostrage
 tabela_pacotes.heading("medida", text="Medida"); tabela_pacotes.heading("timestamp", text="Timestamp")
 tabela_pacotes.heading("dl_bytes", text="Pacote Downlink (20 bytes)"); tabela_pacotes.heading("ul_bytes", text="Pacote Uplink (30 bytes)")
 tabela_pacotes.column("medida", width=60, anchor="center", stretch=False); tabela_pacotes.column("timestamp", width=160, anchor="center", stretch=False)
-tabela_pacotes.column("dl_bytes", width=420, anchor="w", stretch=True); tabela_pacotes.column("ul_bytes", width=420, anchor="w", stretch=True)
+tabela_pacotes.column("dl_bytes", width=300, anchor="w", stretch=True); tabela_pacotes.column("ul_bytes", width=420, anchor="w", stretch=True)
 
 scroll_v_amostragem = ttk.Scrollbar(frame_tabela_amostragem, orient="vertical", command=tabela_pacotes.yview)
 scroll_h_amostragem = ttk.Scrollbar(frame_tabela_amostragem, orient="horizontal", command=tabela_pacotes.xview)
