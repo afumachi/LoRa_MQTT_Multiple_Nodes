@@ -38,8 +38,8 @@ global sf_csv, bw_csv, cr_csv, pw_csv, sf_csv_new, bw_csv_new, cr_csv_new
 
 # ===== Configurações MQTT =====
 #BROKER        = "broker.hivemq.com"
-BROKER        = "test.mosquitto.org"
-#BROKER        = "www.tpm.dev.br"
+#BROKER        = "test.mosquitto.org"
+BROKER        = "www.tpm.dev.br"
 
 PORTA_MQTT    = 1883
 
@@ -58,10 +58,14 @@ MQTT_QOS    = 1
 estado_mqtt = 0
 Pacote_UL_payload = None
 
+
+# ===== Arquivo Log globais =====
+lock_arquivo_log = threading.Lock()
+
 # ===== Variáveis globais =====
 Tamanho_pacote = 20
 
-#
+# 
 indice_dispositivo_atual = 0
 
 # definições de teste: configurações importantes para a bateria de testes extraídas do arquivo de parâmetros
@@ -317,7 +321,7 @@ def calculo_toa_radio_lora(n_preambulo=8, header_impl=False, crc_on=True, low_dr
     return toa_entre_medidas #round(tempo_entre_medidas, 2) #, round(bitrate, 2)
 
 
-
+'''
 #========== FUNÇÃO QUE RECONFIGURA RÁDIO LORA ================
 def muda_radio_lora():
    global comanda_mudar_radio, inicia_lora_site_survey, valor_atual_spreadingfactor, valor_atual_bandwidth, valor_atual_codingrate, valor_atual_potencia_radio
@@ -355,6 +359,7 @@ def cmd_lora():
    time.sleep(8)
    uplink()
 
+'''
 
 # =============================================================================
 # TABELA LUT DE 72 COMBINAÇÕES INDEXADAS (EQUIVALENTE AO FIRMWARE DO ESP32)
@@ -811,7 +816,7 @@ def uplink():
 
 #============================================================================================================================
 
-       
+'''       
 def teste_enlace():
     global confirma_mudar_radio, comanda_mudar_radio, medida_atual, numero_de_medidas, condicao_start, LSS_status
     LSS_status = 2
@@ -819,6 +824,7 @@ def teste_enlace():
     time.sleep(0.5)
     cmd_lora()
     comanda_mudar_radio = 0
+
 
 def perda_enlace():
     global confirma_mudar_radio, comanda_mudar_radio, medida_atual, numero_de_medidas, condicao_start, perda_geral
@@ -861,7 +867,7 @@ def perda_enlace():
             perda_geral = 0
             LSS_status = 0                   
 
-
+'''
 # ===== Loop principal: repete pedindo número de medidas =====
 print("\n========== Gateway LoRa - Comunicação MQTT ==========")
 try:
@@ -894,6 +900,7 @@ try:
          line = Parametros.readline()
          if len(line) > 0: valor_tempo = int(line)
          Parametros.close()
+
 
          # AAF 23-09-2026
          if os.path.exists(caminho_csv_end_devices):
@@ -1020,6 +1027,7 @@ try:
                     downlink()
                                           
                     time.sleep(toa_entre_medidas)
+                    pacote_recebido = 0
 
                     uplink()
 
@@ -1038,32 +1046,34 @@ try:
                         Tempo = time.asctime()
                         print(Tempo + ', ' + str(medida_atual) + ', Downlink: ' + Dados_DL + ' Uplink: ' + Dados_UL)
                         # Grava Pacotes
-                          
-                        Dados_log = Tempo + ',' + str(medida_atual) + ',' + Dados_DL + ',' + Dados_UL
-                        print(Dados_log,file=Log_dados)
-                        Log_dados.flush()
+                        with lock_arquivo_log:  
+                            Dados_log = Tempo + ',' + str(medida_atual) + ',' + Dados_DL + ',' + Dados_UL
+                            print(Dados_log,file=Log_dados)
+                            Log_dados.flush()
 
                     else:
 
-                       perda_PK_RX += 1
-                       print('Cont = ', medida_atual, ' PERDEU PACOTE ')
-                       print('Pacotes perdidos = ',perda_PK_RX)
-                       Dados_DL = ''
-                       Dados_UL = ''
-                       for i in range(Tamanho_pacote):
-                          if i == 0:
-                             Dados_DL = str(Pacote_DL[i])
-                             Dados_UL = '9'
-                          else:
-                             Dados_DL = Dados_DL + ', ' + str(Pacote_DL[i])
-                             Dados_UL = Dados_UL + ', 9'
-                       Tempo = time.asctime()
-                       print(Tempo + ', ' + str(medida_atual) + ', Downlink: ' + Dados_DL + ' Uplink: ' + Dados_UL)
+                        perda_PK_RX += 1
+                        print('Cont = ', medida_atual, ' PERDEU PACOTE ')
+                        print('Pacotes perdidos = ',perda_PK_RX)
+                        Dados_DL = ''
+                        Dados_UL = ''
+                        for i in range(Tamanho_pacote):
+                            if i == 0:
+                                Dados_DL = str(Pacote_DL[i])
+                                Dados_UL = '9'
+                            else:
+                                Dados_DL = Dados_DL + ', ' + str(Pacote_DL[i])
+                                Dados_UL = Dados_UL + ', 9'
+                        Tempo = time.asctime()
+                        print(Tempo + ', ' + str(medida_atual) + ', Downlink: ' + Dados_DL + ' Uplink: ' + Dados_UL)
 
-                       # Grava Pacotes
-                       Dados_log = Tempo + ',' + str(medida_atual) + ',' + Dados_DL + ',' + Dados_UL
-                       print(Dados_log,file=Log_dados)
-                       Log_dados.flush()
+                        # Grava Pacotes
+                        with lock_arquivo_log:
+                        # Grava Pacotes
+                            Dados_log = Tempo + ',' + str(medida_atual) + ',' + Dados_DL + ',' + Dados_UL
+                            print(Dados_log,file=Log_dados)
+                            Log_dados.flush()
                     
 
                     Tempo_gasto = time.time() - Tempo_inicio_pacote

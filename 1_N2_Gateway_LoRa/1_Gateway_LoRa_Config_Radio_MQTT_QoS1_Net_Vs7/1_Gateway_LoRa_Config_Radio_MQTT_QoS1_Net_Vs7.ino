@@ -26,13 +26,13 @@
 // 3 - Configurações Broker MQTT
 // =====================================================================
 // Configurações do Broker Mosquitto (Usando o broker público oficial)
-const char* MQTT_BROKER = "test.mosquitto.org";
+//const char* MQTT_BROKER = "test.mosquitto.org";
 
 // Configurações do Broker HiveMQ (Usando o broker público oficial)
 //const char* MQTT_BROKER   = "broker.hivemq.com";
 
 // Configurações do Broker Smart TpM (Usando o broker público Smart TpM)
-//const char* MQTT_BROKER   = "www.tpm.dev.br";
+const char* MQTT_BROKER   = "www.tpm.dev.br";
 
 const int   MQTT_PORT     = 1883;
 

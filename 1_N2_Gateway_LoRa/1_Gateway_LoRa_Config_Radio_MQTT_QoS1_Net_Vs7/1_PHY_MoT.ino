@@ -163,7 +163,7 @@ void Phy_radio_send_DL() {
 
   // Pisca o LED de transmissão de pacote DL
   digitalWrite(LED_VERMELHO_PIN, HIGH);  // Início da Transmissão
-  digitalWrite(LED_VERDE_PIN, HIGH);  // Início da Transmissão
+  //digitalWrite(LED_VERDE_PIN, HIGH);  // Início da Transmissão
 
   LoRa.sleep();
   LoRa.setSpreadingFactor(valor_novo_spreadingfactor);
@@ -179,7 +179,7 @@ void Phy_radio_send_DL() {
 
   // Pisca o LED de transmissão de pacote DL
   digitalWrite(LED_VERMELHO_PIN, LOW);  // FIM da Transmissão
-  digitalWrite(LED_VERDE_PIN, LOW);  // Início da Transmissão
+  //digitalWrite(LED_VERDE_PIN, LOW);  // Início da Transmissão
 
 }
 
@@ -198,7 +198,7 @@ void Phy_radio_receive_UL() {
   if (packetSize) {
 
     digitalWrite(LED_VERDE_PIN, HIGH);  // Apaga Led Verde Indicando Inicio da leitura do Pacote
-    digitalWrite(LED_VERMELHO_PIN, HIGH);  // FIM da Transmissão
+    //digitalWrite(LED_VERMELHO_PIN, HIGH);  // FIM da Transmissão
 
     // Realiza a leitura caso Payload do Pacote seja compatível com o Pacote de 52 Bytes
     if (packetSize >= TAMANHO_PACOTE) {
@@ -213,13 +213,15 @@ void Phy_radio_receive_UL() {
       RSSI_dBm_UL = LoRa.packetRssi();
       SNR_UL_bruto = LoRa.packetSnr();
 
+
+
       //===================================== IMPORTANTE - OPÇÃO VERIFICAÇÃO DE ENDEREÇO OU MODO PROMÍSCUO========================
       // Quando recebe o pacote a base pode verificar o endereço de destino ou trabalhar em modo promíscuo.
       //===================== QUANDO A BASE  VERIFICA O ENDENREÇO DE DESTINO O PACOTE SÓ É ENVIADO PARA A SERIAL CASO A BASE SEJA O DESTINATÁRIO - nesse caso descomentar o bloco abaixo
       // Esta é uma função originalmente da camada de rede, mas existe um cross-layer para verificação do endereço de destino, recebendo somente os pacotes que são destinados para a base
   
       digitalWrite(LED_VERDE_PIN, LOW);  // Fim da leitura do Pacote
-      digitalWrite(LED_VERMELHO_PIN, LOW);  // FIM da Transmissão
+      //digitalWrite(LED_VERMELHO_PIN, LOW);  // FIM da Transmissão
       //Serial.println("Pacote UPLINK Recebido");
 
       // Garante que Nó Sensor também recebeu comando de alteração de rádio e confirmou
@@ -251,6 +253,18 @@ void Phy_mqtt_send_UL() {
     // Fórmula para sinal abaixo do ruído (SNR < 0)
     RSSI_dBm_UL = ((Rssi_UL_bruto - offset) + (SNR_UL_bruto));
   }  
+
+
+    // Imprimindo o RSSI no Serial Monitor
+    Serial.print("RSSI (dBm): ");
+    Serial.print(RSSI_dBm_UL);
+    
+    // Espaçamento entre os dois dados
+    Serial.print(" | "); 
+    
+    // Imprimindo o SNR no Serial Monitor com quebra de linha no final
+    Serial.print("SNR: ");
+    Serial.println(SNR_UL_bruto);
 
   //--- Bloco que faz adequação da leitura de RSSI para um byte ---
   if (RSSI_dBm_UL > -10.5)   // Caso a RSSI medida esteja acima do valor superior -10,5 dBm

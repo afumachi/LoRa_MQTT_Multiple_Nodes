@@ -275,8 +275,12 @@ while True:
             dados_dev[dev_id]["total_pacotes"] += 1
 
             pacote_recebido = 0
-            UL_B8 = int(partes[30]) # Endereço do Gateway
-            UL_B19 = int(partes[41]) # Tipo PKLoRa
+            try:
+                UL_B8 = int(partes[30]) # Endereço do Gateway
+                UL_B19 = int(partes[41]) # Tipo PKLoRa
+            except (IndexError, ValueError):
+                # Se a linha estiver corrompida ou incompleta, ignora esta linha e passa para a próxima
+                continue
             for j in range(10):
                 if ((int(partes[23 + j]) != 9) and (UL_B8 == 0) and (UL_B19 == 1)):
                     pacote_recebido = 1
@@ -288,7 +292,7 @@ while True:
                 # RSSI / SNR Downlink e Uplink
                 UL_B0 = int(partes[22])
 
-                if UL_B0 <= 127:
+                if UL_B0 == 127:
                     RSSI_DL = -10.5
                 
                 # Condição 2: Intervalo entre -10.5 e -74 dBm
@@ -317,7 +321,7 @@ while True:
 
                 UL_B2 = int(partes[24])
 
-                if UL_B2 <= 127:
+                if UL_B2 == 127:
                     RSSI_UL = -10.5
                 
                 # Condição 2: Intervalo entre -10.5 e -74 dBm
@@ -332,8 +336,6 @@ while True:
                 elif 128 <= UL_B2 <= 255:
                     RSSI_UL = ((UL_B2 - 256) / 2) - 74
     
-
-
                 '''
                 UL_B2 = int(partes[24])
                 RSSI_UL = (

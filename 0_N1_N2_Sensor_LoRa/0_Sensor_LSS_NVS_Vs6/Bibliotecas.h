@@ -144,7 +144,7 @@ int lostPacketCounter = 0;        // Contador de falhas
 bool communicationLost = false;
 
 unsigned long time_out_lora_dl = 60000UL; // 1 min. time out Pacote_DL
-
+unsigned long millis_mqtt_controle = 0;
 // ============================================================
 // VARIÁVEIS GLOBAIS - adicionar junto às demais declarações
 // ============================================================

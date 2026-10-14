@@ -71,7 +71,7 @@ byte PacoteUL[TAMANHO_PACOTE];
 
 // ============= CAMADA DE REDE
 // Identificação do sensor e tamanho de pacote
-int ID_sensor = 3; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
+int ID_sensor = 2; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
 int ID_gateway = 0;    // Variável com o ID_gateway que estará no pacote de DL byte 10
 
 // ============== CAMADA DE TRANSPORTE
@@ -320,31 +320,6 @@ void loop() {
   millis_radio_control = millis(); 
 
   }
-
-  // Liga um LED a cada 500 [ms]
-  unsigned long tempo_led_ms = 1000UL;
-  
-
-  if (millis() - millis_mqtt_controle >= tempo_led_ms) {        
-
-    st_led_vermelho = 1;
-    // Zera contagem do tempo de controle MQTT para tempo de ESP32 rodando
-    millis_mqtt_controle = millis(); 
-
-  }
-  else {
-    st_led_vermelho = 0;
-  }
-  
-    if (st_led_vermelho == 1){
-      //digitalWrite(LED_VERMELHO_PIN, LOW);
-      //digitalWrite(LED_VERDE_PIN, LOW);
-    }
-    else{
-      //digitalWrite(LED_VERMELHO_PIN, HIGH);
-      //digitalWrite(LED_VERDE_PIN, HIGH);
-    }
-
 
 
 
