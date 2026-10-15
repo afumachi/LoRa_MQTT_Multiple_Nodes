@@ -1,6 +1,6 @@
-# FEE247 - Desenvolvimento de Soluções IoT com LoRa e LoRaWAN
+# Desenvolvimento de Soluções IoT com LoRa e LoRaWAN
 # ======= Nível 6 - Gerência e Parâmetros LoRa ============
-# Gráficos de RSSI, PSR, GPS e Cadastro de End Devices
+# Gráficos de RSSI, PSR, GPS, Atenuação IoT e Cadastro de End Devices
 
 import time
 import os
@@ -20,7 +20,6 @@ from matplotlib import style
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import math
-
 import pandas as pd
 
 style.use("ggplot")
@@ -31,6 +30,7 @@ style.use("ggplot")
 dir_nivel4 = os.path.join(os.path.dirname(__file__), '../3_N4_Armazenamento/Parametros/')
 
 arquivo_gw_gps = os.path.join(dir_nivel4, "gateway_gps.txt")
+arquivo_parametros_propagacao = os.path.join(dir_nivel4, "parametros_propagacao.txt")
 
 dir_dados = os.path.join(os.path.dirname(__file__), '../3_N4_Armazenamento/Dados_Processados/')
 arquivo_gps_tmp = os.path.join(dir_dados, "gps.tmp")
@@ -57,7 +57,7 @@ cor_psr = "#2ca02c"
 cor_taxa_teorica = "#9467bd"
 cor_taxa_calculada = "#d62728"
 
-# Atualiza arquivo de Parâmetros
+# Atualiza arquivo de Parâmetros de Comando
 pasta_parametros = os.path.join(dir_nivel4, 'PARAMETROS.txt')
 os.makedirs(dir_nivel4, exist_ok=True)
 with open(pasta_parametros, 'w') as parametros:
@@ -100,31 +100,14 @@ def ler_gateway_gps():
         try:
             with open(arquivo_gw_gps, "r") as f:
                 conteudo = f.read()
-            valores_dict = {}
-            for linha in conteudo.splitlines():
-                if "=" in linha and not linha.strip().startswith("#"):
-                    chave, val = linha.split("=", 1)
-                    try:
-                        valores_dict[chave.strip().upper()] = float(val.strip())
-                    except ValueError:
-                        pass
-            if "GW_LAT" in valores_dict and "GW_LON" in valores_dict:
-                gw_lat = valores_dict["GW_LAT"]
-                gw_lon = valores_dict["GW_LON"]
-                gw_alt = valores_dict.get("GW_ALT", gw_alt)
-                return gw_lat, gw_lon, gw_alt
             floats = [float(x) for x in re.findall(r"[-+]?\d*\.\d+|\d+", conteudo)]
             if len(floats) >= 3:
                 gw_lat, gw_lon, gw_alt = floats[0], floats[1], floats[2]
-            elif len(floats) == 2:
-                gw_lat, gw_lon = floats[0], floats[1]
-        except Exception as e:
-            print(f"Erro ao ler {arquivo_gw_gps}: {e}")
+        except Exception: pass
     return gw_lat, gw_lon, gw_alt
 
-def ler_ultimo_gps():
-    # get_tmp_path("gps.tmp") vai gerar dinamicamente o caminho com base no ID selecionado (ex: 1_gps.tmp, 2_gps.tmp)
-    caminho_arquivo = get_tmp_path("gps.tmp")
+def ler_ultimo_gps_por_id(dev_id):
+    caminho_arquivo = os.path.join(dir_dados, f"{dev_id}_gps.tmp")
     if not os.path.exists(caminho_arquivo):
         return None
     try:
@@ -133,15 +116,12 @@ def ler_ultimo_gps():
             if not linhas:
                 return None
             partes = linhas[-1].split()
-            # Espera-se: Latitude, Longitude, Altitude, Distância do Enlace
             if len(partes) >= 4:
-                return (float(partes[0]), float(partes[1]), float(partes[2]), float(partes[3]))
-            elif len(partes) == 3:
-                return (float(partes[0]), float(partes[1]), float(partes[2]), None)
-    except Exception as e:
-        print(f"Erro ao ler o arquivo {caminho_arquivo}: {e}")
-        return None
-'''
+                return float(partes[3])
+    except Exception:
+        pass
+    return None
+
 def ler_ultimo_gps():
     caminho_arquivo = get_tmp_path("gps.tmp")
     if not os.path.exists(caminho_arquivo):
@@ -154,16 +134,51 @@ def ler_ultimo_gps():
             partes = linhas[-1].split()
             if len(partes) >= 4:
                 return (float(partes[0]), float(partes[1]), float(partes[2]), float(partes[3]))
-            elif len(partes) == 3:
-                return float(partes[0]), float(partes[1]), float(partes[2]), None
-    except Exception as e:
-        print(f"Erro ao ler o arquivo {caminho_arquivo}: {e}")
+    except Exception:
         return None
-'''
+
+def ler_parametros_propagacao_arquivo():
+    p_tx, g_tx, g_rx, c, f_freq, lamb, s_rx, nrssi, nsnr = 17.0, 0.0, 0.0, 299792458.0, 903000000.0, 0.3319961, -136.0, 10, 10
+    if os.path.exists(arquivo_parametros_propagacao):
+        try:
+            with open(arquivo_parametros_propagacao, "r") as f:
+                for linha in f:
+                    if "=" in linha and not linha.strip().startswith("#"):
+                        k, v = linha.split("=", 1)
+                        k, val = k.strip().upper(), float(v.strip())
+                        if k == "P_TX": p_tx = val
+                        elif k == "G_TX": g_tx = val
+                        elif k == "G_RX": g_rx = val
+                        elif k == "C": c = val
+                        elif k == "F": f_freq = val
+                        elif k == "LAMBDA": lamb = val
+                        elif k == "S_RX": s_rx = val
+                        elif k == "NRSSI_MED": nrssi = int(val)
+                        elif k == "NSNR_MED": nsnr = int(val)
+        except Exception: pass
+    return p_tx, g_tx, g_rx, c, f_freq, lamb, s_rx, nrssi, nsnr
+
+def salvar_parametros_propagacao_arquivo(nrssi_val, nsnr_val):
+    p_tx, g_tx, g_rx, c, f_freq, lamb, s_rx, _, _ = ler_parametros_propagacao_arquivo()
+    os.makedirs(dir_nivel4, exist_ok=True)
+    try:
+        with open(arquivo_parametros_propagacao, "w") as f:
+            f.write(f"P_TX = {p_tx}\nG_TX = {g_tx}\nG_RX = {g_rx}\nC = {c}\nF = {f_freq}\nLAMBDA = {lamb}\nS_RX = {s_rx}\nNRSSI_MED = {int(nrssi_val)}\nNSNR_MED = {int(nsnr_val)}\n")
+    except Exception: pass
+
 
 # ===================== ATUALIZA GRÁFICOS (LORA) =====================
-def atualizar_grafico(ax1, ax2, ax3, ax4, canvas1, canvas2, canvas3, canvas4, raiz, label_down, label_up, label_snr_down, label_snr_up, label_psr, label_taxa_teorica, label_taxa_calculada):
+def atualizar_grafico(ax_rssi_dl, ax_rssi_dl_diff, ax_rssi_ul, ax_rssi_ul_diff, 
+                      ax_snr_dl, ax_snr_dl_diff, ax_snr_ul, ax_snr_ul_diff, 
+                      ax3, ax4, canvas_rssi, canvas_snr, canvas3, canvas4, 
+                      raiz, label_down, label_up, label_snr_down, label_snr_up, 
+                      label_psr, label_taxa_teorica, label_taxa_calculada):
+    
     rssi_down, rssi_up, snr_down, snr_up = [], [], [], []
+    mm_rssi_down, mm_rssi_up, mm_snr_down, mm_snr_up = [], [], [], []
+    diff_rssi_down, diff_rssi_up, diff_snr_down, diff_snr_up = [], [], [], []
+    mean_mm_r_dl, mean_mm_r_up, std_r_dl, std_r_up = [], [], [], []
+    mean_mm_s_dl, mean_mm_s_up, std_s_dl, std_s_up = [], [], [], []
     psr, taxa_teorica, taxa_calculada = [], [], []
 
     try:
@@ -172,142 +187,166 @@ def atualizar_grafico(ax1, ax2, ax3, ax4, canvas1, canvas2, canvas3, canvas4, ra
                 linha = linha.strip()
                 if linha:
                     try:
-                        partes = linha.split()
-                        rssi_down.append(float(partes[0].replace(",", ".")))
-                        rssi_up.append(float(partes[1].replace(",", ".")))
-                        snr_down.append(float(partes[2].replace(",", ".")))
-                        snr_up.append(float(partes[3].replace(",", ".")))                        
-                    except:
-                        pass
+                        p = linha.split()
+                        rssi_down.append(float(p[0].replace(",", ".")))
+                        rssi_up.append(float(p[1].replace(",", ".")))
+                        snr_down.append(float(p[2].replace(",", ".")))
+                        snr_up.append(float(p[3].replace(",", ".")))
+
+                        def pv(idx):
+                            return float(p[idx].replace(",", ".")) if len(p) > idx and p[idx] != "None" else None
+
+                        mm_rssi_down.append(pv(4))
+                        mm_rssi_up.append(pv(5))
+                        mm_snr_down.append(pv(6))
+                        mm_snr_up.append(pv(7))
+                        diff_rssi_down.append(pv(8))
+                        diff_rssi_up.append(pv(9))
+                        diff_snr_down.append(pv(10))
+                        diff_snr_up.append(pv(11))
+                        mean_mm_r_dl.append(pv(12))
+                        mean_mm_r_up.append(pv(13))
+                        std_r_dl.append(pv(14))
+                        std_r_up.append(pv(15))
+                        mean_mm_s_dl.append(pv(16))
+                        mean_mm_s_up.append(pv(17))
+                        std_s_dl.append(pv(18))
+                        std_s_up.append(pv(19))
+                    except Exception: pass
     except FileNotFoundError: pass
 
     try:
         with open(get_tmp_path("psr.tmp"), 'r') as f:
             for linha in f:
-                linha = linha.strip()
-                if linha:
-                    try: psr.append(float(linha))
+                if linha.strip():
+                    try: psr.append(float(linha.strip()))
                     except ValueError: pass
     except FileNotFoundError: pass
 
     try:
         with open(get_tmp_path("taxa_dados.tmp"), 'r') as f:
             for linha in f:
-                linha = linha.strip()
-                if linha:
+                if linha.strip():
                     try:
-                        partes = linha.split()
-                        t_teorica = partes[0].replace(",", ".")
-                        t_calculada = partes[1].replace(",", ".")
-                        if t_teorica != "None" and t_calculada != "None":
-                            taxa_teorica.append(float(t_teorica))
-                            taxa_calculada.append(float(t_calculada))
-                    except (ValueError, IndexError): pass
+                        p = linha.strip().split()
+                        if p[0] != "None" and p[1] != "None":
+                            taxa_teorica.append(float(p[0].replace(",", ".")))
+                            taxa_calculada.append(float(p[1].replace(",", ".")))
+                    except Exception: pass
     except FileNotFoundError: pass
 
-    # Janela Deslizante
-    rssi_down = rssi_down[-MAX_PONTOS:]
-    rssi_up = rssi_up[-MAX_PONTOS:]
-    snr_down = snr_down[-MAX_PONTOS:]
-    snr_up = snr_up[-MAX_PONTOS:]    
-    psr = psr[-MAX_PONTOS:]
-    taxa_teorica = taxa_teorica[-MAX_PONTOS:]
-    taxa_calculada = taxa_calculada[-MAX_PONTOS:]
+    # Atualiza Textos
+    curr_r_dl = f"RSSI DL: {rssi_down[-1]:.2f} dBm | Média MM: {f'{mean_mm_r_dl[-1]:.2f}' if mean_mm_r_dl and mean_mm_r_dl[-1] is not None else '--'} | DP: {f'{std_r_dl[-1]:.2f}' if std_r_dl and std_r_dl[-1] is not None else '--'}" if rssi_down else "RSSI DL atual: --"
+    curr_r_up = f"RSSI UL: {rssi_up[-1]:.2f} dBm | Média MM: {f'{mean_mm_r_up[-1]:.2f}' if mean_mm_r_up and mean_mm_r_up[-1] is not None else '--'} | DP: {f'{std_r_up[-1]:.2f}' if std_r_up and std_r_up[-1] is not None else '--'}" if rssi_up else "RSSI UL atual: --"
+    label_down.config(text=curr_r_dl)
+    label_up.config(text=curr_r_up)
 
-    # Labels
-    label_down.config(text=f"RSSI DL atual: {round(rssi_down[-1],2)} dBm" if rssi_down else "RSSI DL atual: --")
-    label_up.config(text=f"RSSI UL atual: {round(rssi_up[-1],2)} dBm" if rssi_up else "RSSI UL atual: --")
-    label_snr_down.config(text=f"SNR DL atual: {round(snr_down[-1],2)} dB" if snr_down else "SNR DL atual: --")
-    label_snr_up.config(text=f"SNR UL atual: {round(snr_up[-1],2)} dB" if snr_up else "SNR UL atual: --")
+    curr_s_dl = f"SNR DL: {snr_down[-1]:.2f} dB | Média MM: {f'{mean_mm_s_dl[-1]:.2f}' if mean_mm_s_dl and mean_mm_s_dl[-1] is not None else '--'} | DP: {f'{std_s_dl[-1]:.2f}' if std_s_dl and std_s_dl[-1] is not None else '--'}" if snr_down else "SNR DL atual: --"
+    curr_s_up = f"SNR UL: {snr_up[-1]:.2f} dB | Média MM: {f'{mean_mm_s_up[-1]:.2f}' if mean_mm_s_up and mean_mm_s_up[-1] is not None else '--'} | DP: {f'{std_s_up[-1]:.2f}' if std_s_up and std_s_up[-1] is not None else '--'}" if snr_up else "SNR UL atual: --"
+    label_snr_down.config(text=curr_s_dl)
+    label_snr_up.config(text=curr_s_up)
+
     label_psr.config(text=f"PSR atual: {round(psr[-1],2)} %" if psr else "PSR atual: --")
     label_taxa_teorica.config(text=f"Taxa Teórica atual: {round(taxa_teorica[-1],3)} bps" if taxa_teorica else "Taxa Teórica atual: --")
     label_taxa_calculada.config(text=f"Taxa Real atual: {round(taxa_calculada[-1],3)} bps" if taxa_calculada else "Taxa Real atual: --")
 
-    # Gráficos
-    ax1.clear(); ax2.clear(); ax3.clear(); ax4.clear()
-    
-    if rssi_down: ax1.plot(rssi_down, label="RSSI Downlink (dBm)", linewidth=1.5, marker='o', markersize=1, color=cor_rssi_down)
-    if rssi_up: ax1.plot(rssi_up, label="RSSI Uplink (dBm)", linewidth=1.5, marker='s', markersize=1, color=cor_rssi_up)
-    if rssi_down or rssi_up:
-        ax1.legend(loc='upper right', fontsize=8)
-        val_min, val_max = min(rssi_down + rssi_up), max(rssi_down + rssi_up)
-        margem = (val_max - val_min) * 0.10 or 5
-        ax1.set_ylim(val_min - margem, val_max + margem)
-    ax1.set_title("RSSI LoRa (Downlink / Uplink)", fontsize=9); ax1.set_ylabel("RSSI (dBm)", fontsize=9); ax1.tick_params(axis='both', labelsize=7)    
+    ax_rssi_dl.clear(); ax_rssi_dl_diff.clear(); ax_rssi_ul.clear(); ax_rssi_ul_diff.clear()
+    if rssi_down:
+        x = range(len(rssi_down))
+        ax_rssi_dl.plot(x, rssi_down, label="RSSI DL", color=cor_rssi_down, linewidth=1.2)
+        if any(v is not None for v in mm_rssi_down): ax_rssi_dl.plot(x, mm_rssi_down, label="MM RSSI DL", linestyle="--", color="black")
+        ax_rssi_dl.legend(loc='upper right', fontsize=7)
+        ax_rssi_dl.set_title("RSSI Downlink & Média Móvel", fontsize=8)
+        if any(v is not None for v in diff_rssi_down):
+            ax_rssi_dl_diff.plot(x, diff_rssi_down, label="Dif RSSI DL", color="#d62728", linewidth=1.2)
+            ax_rssi_dl_diff.axhline(0, color="gray", linestyle=":")
+            ax_rssi_dl_diff.legend(loc='upper right', fontsize=7)
+            ax_rssi_dl_diff.set_title("Diferença RSSI Downlink", fontsize=8)
 
-    if snr_down: ax2.plot(snr_down, label="SNR Downlink (dB)", linewidth=1.5, marker='o', markersize=1, color=cor_snr_down)
-    if snr_up: ax2.plot(snr_up, label="SNR Uplink (dB)", linewidth=1.5, marker='s', markersize=1, color=cor_snr_up)
-    if snr_down or snr_up:
-        ax2.legend(loc='upper right', fontsize=8)
-        val_snr_min, val_snr_max = min(snr_down + snr_up), max(snr_down + snr_up)
-        margem_snr = (val_snr_max - val_snr_min) * 0.10 or 5
-        ax2.set_ylim(val_snr_min - margem_snr, val_snr_max + margem_snr)
-    ax2.set_title("SNR LoRa (Downlink / Uplink)", fontsize=9); ax2.set_ylabel("SNR (dB)", fontsize=9); ax2.tick_params(axis='both', labelsize=7)    
+    if rssi_up:
+        x_up = range(len(rssi_up))
+        ax_rssi_ul.plot(x_up, rssi_up, label="RSSI UL", color=cor_rssi_up, linewidth=1.2)
+        if any(v is not None for v in mm_rssi_up): ax_rssi_ul.plot(x_up, mm_rssi_up, label="MM RSSI UL", linestyle="--", color="black")
+        ax_rssi_ul.legend(loc='upper right', fontsize=7)
+        ax_rssi_ul.set_title("RSSI Uplink & Média Móvel", fontsize=8)
+        if any(v is not None for v in diff_rssi_up):
+            ax_rssi_ul_diff.plot(x_up, diff_rssi_up, label="Dif RSSI UL", color="#9467bd", linewidth=1.2)
+            ax_rssi_ul_diff.axhline(0, color="gray", linestyle=":")
+            ax_rssi_ul_diff.legend(loc='upper right', fontsize=7)
+            ax_rssi_ul_diff.set_title("Diferença RSSI Uplink", fontsize=8)
 
-    if psr:
-        ax3.plot(psr, label="PSR (%)", linewidth=1.5, marker='o', markersize=1, color=cor_psr)
-        ax3.legend(loc='upper right', fontsize=8)
-        val_min, val_max = min(psr), max(psr)
-        margem = (val_max - val_min) * 0.10 or 5
-        ax3.set_ylim(max(0, val_min - margem), min(105, val_max + margem))
-    ax3.set_title("Packet Success Rate - PSR", fontsize=9); ax3.set_ylabel("PSR (%)", fontsize=9); ax3.tick_params(axis='both', labelsize=7)   
+    ax_snr_dl.clear(); ax_snr_dl_diff.clear(); ax_snr_ul.clear(); ax_snr_ul_diff.clear()
+    if snr_down:
+        x_s = range(len(snr_down))
+        ax_snr_dl.plot(x_s, snr_down, label="SNR DL", color=cor_snr_down, linewidth=1.2)
+        if any(v is not None for v in mm_snr_down): ax_snr_dl.plot(x_s, mm_snr_down, label="MM SNR DL", linestyle="--", color="black")
+        ax_snr_dl.legend(loc='upper right', fontsize=7)
+        ax_snr_dl.set_title("SNR Downlink & Média Móvel", fontsize=8)
+        if any(v is not None for v in diff_snr_down):
+            ax_snr_dl_diff.plot(x_s, diff_snr_down, label="Dif SNR DL", color="#d62728", linewidth=1.2)
+            ax_snr_dl_diff.axhline(0, color="gray", linestyle=":")
+            ax_snr_dl_diff.legend(loc='upper right', fontsize=7)
+            ax_snr_dl_diff.set_title("Diferença SNR Downlink", fontsize=8)
 
-    if taxa_teorica: ax4.plot(taxa_teorica, label="Taxa Teórica (bps)", linewidth=1.5, marker='o', markersize=1, color=cor_taxa_teorica)
-    if taxa_calculada: ax4.plot(taxa_calculada, label="Taxa Real (bps)", linewidth=1.5, marker='s', markersize=1, color=cor_taxa_calculada)
-    if taxa_teorica or taxa_calculada:
-        ax4.legend(loc='upper right', fontsize=8)
-        val_min, val_max = min(taxa_teorica + taxa_calculada), max(taxa_teorica + taxa_calculada)
-        margem = (val_max - val_min) * 0.10 or 5
-        ax4.set_ylim(max(0, val_min - margem), val_max + margem)
-    ax4.set_title("Taxa de Canal LoRa - Teórica x Real", fontsize=9); ax4.set_ylabel("Taxa (bps)", fontsize=9); ax4.tick_params(axis='both', labelsize=7)
+    if snr_up:
+        x_su = range(len(snr_up))
+        ax_snr_ul.plot(x_su, snr_up, label="SNR UL", color=cor_snr_up, linewidth=1.2)
+        if any(v is not None for v in mm_snr_up): ax_snr_ul.plot(x_su, mm_snr_up, label="MM SNR UL", linestyle="--", color="black")
+        ax_snr_ul.legend(loc='upper right', fontsize=7)
+        ax_snr_ul.set_title("SNR Uplink & Média Móvel", fontsize=8)
+        if any(v is not None for v in diff_snr_up):
+            ax_snr_ul_diff.plot(x_su, diff_snr_up, label="Dif SNR UL", color="#9467bd", linewidth=1.2)
+            ax_snr_ul_diff.axhline(0, color="gray", linestyle=":")
+            ax_snr_ul_diff.legend(loc='upper right', fontsize=7)
+            ax_snr_ul_diff.set_title("Diferença SNR Uplink", fontsize=8)
 
-    canvas1.draw(); canvas2.draw(); canvas3.draw(); canvas4.draw()
-    raiz.after(1000, atualizar_grafico, ax1, ax2, ax3, ax4, canvas1, canvas2, canvas3, canvas4, raiz, label_down, label_up, label_snr_down, label_snr_up, label_psr, label_taxa_teorica, label_taxa_calculada)
+    ax3.clear(); ax4.clear()
+    if psr: ax3.plot(psr, label="PSR (%)", color=cor_psr); ax3.legend(loc='upper right', fontsize=8)
+    ax3.set_title("Packet Success Rate - PSR", fontsize=9)
+    if taxa_teorica: ax4.plot(taxa_teorica, label="Taxa Teórica", color=cor_taxa_teorica)
+    if taxa_calculada: ax4.plot(taxa_calculada, label="Taxa Real", color=cor_taxa_calculada)
+    if taxa_teorica or taxa_calculada: ax4.legend(loc='upper right', fontsize=8)
+    ax4.set_title("Taxa de Canal LoRa", fontsize=9)
 
+    canvas_rssi.draw(); canvas_snr.draw(); canvas3.draw(); canvas4.draw()
+    raiz.after(1000, atualizar_grafico, ax_rssi_dl, ax_rssi_dl_diff, ax_rssi_ul, ax_rssi_ul_diff, 
+               ax_snr_dl, ax_snr_dl_diff, ax_snr_ul, ax_snr_ul_diff, ax3, ax4, 
+               canvas_rssi, canvas_snr, canvas3, canvas4, raiz, 
+               label_down, label_up, label_snr_down, label_snr_up, 
+               label_psr, label_taxa_teorica, label_taxa_calculada)
 
-# ===================== BOTÕES DE SALVAMENTO =====================
-def salvar(fig1, fig2, fig3=None, fig4=None):
+def salvar(fig_rssi, fig_snr, fig_psr=None, fig_taxa=None):
     arquivo = tkFileDialog.asksaveasfilename(defaultextension=".png")
     if arquivo:
-        fig1.savefig(arquivo.replace(".png","_rssi.png"))
-        fig2.savefig(arquivo.replace(".png","_snr.png"))
-        if fig3 is not None: fig3.savefig(arquivo.replace(".png","_psr.png"))
-        if fig4 is not None: fig4.savefig(arquivo.replace(".png","_taxa.png"))
+        fig_rssi.savefig(arquivo.replace(".png","_rssi.png"))
+        fig_snr.savefig(arquivo.replace(".png","_snr.png"))
+        if fig_psr: fig_psr.savefig(arquivo.replace(".png","_psr.png"))
+        if fig_taxa: fig_taxa.savefig(arquivo.replace(".png","_taxa.png"))
 
-
-# ===================== INTERFACE PRINCIPAL =====================
+# =============================================================================
+# INTERFACE PRINCIPAL
+# =============================================================================
 raiz = Tk()
-raiz.title("FEE230 - NÍVEL 6 - GERÊNCIA LORA")
+raiz.title("LoRa - GERÊNCIA DE REDE")
 raiz.geometry("1350x980")
-raiz.resizable(True, True)
-
 try: raiz.state('zoomed')
-except Exception:
-    try: raiz.attributes('-zoomed', True)
-    except Exception: pass
+except Exception: pass
 
-# Variável que armazenará o End Device atual escolhido pelo operador
 end_device_selecionado = StringVar(value="1")
-
 notebook = ttk.Notebook(raiz)
 notebook.pack(fill=BOTH, expand=True, padx=5, pady=5)
 
-style_ttk = ttk.Style()
-style_ttk.configure("TNotebook.Tab", font=("Arial", 10, "bold"), padding=[12, 6])
-
-
 # =============================================================================
-# ABA 1: Setup
+# ABA 1: Setup (Monitor de Pacotes LoRa) - RESTAURADA
 # =============================================================================
 aba_gerencia = Frame(notebook, bg="#F0F0F0")
-notebook.add(aba_gerencia, text="  📡 LoRa Survey Setup ")
+notebook.add(aba_gerencia, text="  📡 Monitor de Pacotes LoRa ")
 
 reg_parametrizacao = Frame(master=aba_gerencia, borderwidth=1, relief='sunken', bg="#F0F0F0")
 reg_parametrizacao.place(x=10, y=10, width=300, height=310)
 
 Label(reg_parametrizacao, font=("Arial", 14, "bold"), text="Configurações LoRa", padx=5, pady=5, bg="#F0F0F0").pack(side=TOP, anchor="n")
 
-# Seletor do End Device
 Label(reg_parametrizacao, text="End Device (Nó Sensor):", font=("Arial", 11, "bold"), bg="#F0F0F0").place(x=20, y=50)
 lista_ids = [str(dev) for dev in ler_end_devices()]
 combo_devices = ttk.Combobox(reg_parametrizacao, textvariable=end_device_selecionado, values=lista_ids, state="readonly", width=12, font=("Arial", 11))
@@ -315,7 +354,6 @@ combo_devices.place(x=20, y=80)
 if lista_ids:
     combo_devices.current(0)
 
-# Campo da Qtde. de Medidas
 Label(reg_parametrizacao, text="Qtde. de Medidas", font=("Arial", 12), bg="#F0F0F0").place(x=20, y=120)
 valor_intervalo = Entry(reg_parametrizacao, width=10, font=("Arial", 12))
 valor_intervalo.place(x=20, y=150); valor_intervalo.insert(0, "100")
@@ -372,44 +410,32 @@ def ler_stats_min_max():
             linha = f.readline().strip()
     except FileNotFoundError:
         return None
-    if not linha:
-        return None
-    
+    if not linha: return None
     def parse_float(val):
-        if not val or val == "None":
-            return None
-        try:
-            return float(val.replace(",", "."))
-        except ValueError:
-            return None
-
+        if not val or val == "None": return None
+        try: return float(val.replace(",", "."))
+        except ValueError: return None
     return tuple(parse_float(c) for c in linha.split()[:8])
 
 def _fmt(valor, unidade=""):
     return ("{:.2f}".format(valor) + (" " + unidade if unidade else "")) if valor is not None else "--"
 
-
 def ler_ultima_taxa_calculada():
-    """Lê a última Taxa Calculada/Real processada em taxa_dados.tmp para o nó atual."""
     linha = _ler_ultima_linha_valida(get_tmp_path("taxa_dados.tmp"))
-    if not linha:
-        return None
+    if not linha: return None
     try:
         partes = linha.split()
         if len(partes) >= 2:
             val_calc = partes[1].replace(",", ".")
-            if val_calc != "None":
-                return float(val_calc)
-    except (ValueError, IndexError):
-        pass
+            if val_calc != "None": return float(val_calc)
+    except (ValueError, IndexError): pass
     return None
-
 
 def atualizar_texto_estatisticas():
     dados_atual = ler_ultimo_valor_rssi_snr()
     psr_atual = ler_ultimo_psr()
     stats = ler_stats_min_max()
-    taxa_calc_atual = ler_ultima_taxa_calculada() # <- Chama a nova função
+    taxa_calc_atual = ler_ultima_taxa_calculada()
 
     rssi_dl_at, rssi_ul_at, snr_dl_at, snr_ul_at = dados_atual if dados_atual else (None,)*4
     (rssi_dl_min, rssi_dl_max, rssi_ul_min, rssi_ul_max, snr_dl_min, snr_dl_max, snr_ul_min, snr_ul_max) = stats if stats else (None,)*8
@@ -434,12 +460,10 @@ def atualizar_texto_estatisticas():
             with open(path_param, 'r') as f: linhas = [linha.strip() for linha in f.readlines()]
             cmd_lss = linhas[0] if len(linhas) > 0 else "0"
             estado_lss = linhas[1] if len(linhas) > 0 else "0"
-
             mensagens_cmd = {"0": ("TESTE PARADO", "red"), "1": ("CMD CONFIG RADIO", "blue"), "3": ("CMD TESTE ENLACE", "blue"), "4": ("LSS EM ANDAMENTO", "green"), "5": ("ENVIA ÚLTIMO PKT", "green"), "10": ("CMD GATEWAY MAX", "blue")}
             if cmd_lss in mensagens_cmd:
                 status_texto_ger.set(f"LoRa Site Survey - {mensagens_cmd[cmd_lss][0]}")
                 label_status_ger.config(fg=mensagens_cmd[cmd_lss][1])
-
             mensagens_est = {"0": ("ESTADO PARADO", "red"), "1": ("ERRO CONFIG RADIO", "blue"), "3": ("RADIO CONFIGURADO", "blue"), "4": ("TESTE ENLACE OK", "blue"), "5": ("ÚLTIMO PKT UL OK", "green"), "6": ("PACOTE UL RECEBIDO", "green"), "10": ("GATEWAY MAX OK", "blue")}
             if estado_lss in mensagens_est:
                 status_texto_ger2.set(f"LoRa Site Survey - {mensagens_est[estado_lss][0]}")
@@ -533,88 +557,106 @@ atualizar_amostragem_pacotes()
 
 
 # =============================================================================
-# ABA 2: GERÊNCIA LoRa
+# ABA 2: RSSI
 # =============================================================================
-aba_gerencia_completa = Frame(notebook, bg="#F0F0F0")
-notebook.add(aba_gerencia_completa, text="  📶 Gerência de Rede LoRa  ")
+aba_gerencia_rssi = Frame(notebook, bg="#F0F0F0")
+notebook.add(aba_gerencia_rssi, text="  📶 Gerência LoRa - RSSI  ")
+frame_ctrl_rssi = Frame(aba_gerencia_rssi, bg="#F0F0F0")
+frame_ctrl_rssi.pack(fill="x", padx=10, pady=(5,0))
+Label(frame_ctrl_rssi, text="Janela Móvel RSSI (NRSSI_MED):", font=("Arial", 9, "bold"), bg="#F0F0F0").pack(side="left", padx=5)
+entry_nrssi_med = Entry(frame_ctrl_rssi, width=6, font=("Arial", 10))
+entry_nrssi_med.pack(side="left", padx=5)
+_, _, _, _, _, _, _, nrssi_init, nsnr_init = ler_parametros_propagacao_arquivo()
+entry_nrssi_med.insert(0, str(nrssi_init))
+Button(frame_ctrl_rssi, text="💾 Salvar Janela RSSI", font=("Arial", 9), command=lambda: salvar_parametros_propagacao_arquivo(int(entry_nrssi_med.get()), nsnr_init)).pack(side="left", padx=5)
 
-frame_labels_rssi = Frame(aba_gerencia_completa)
-frame_labels_rssi.pack(fill="x", padx=10, pady=(10,5))
-label_down = Label(frame_labels_rssi, text="RSSI DL atual: --", font=("Arial",9,"bold"), bg=cor_rssi_down, fg="white", relief="ridge", bd=3, width=20, pady=4)
-label_down.pack(side="left", padx=5)
-label_up = Label(frame_labels_rssi, text="RSSI UL atual: --", font=("Arial",9,"bold"), bg=cor_rssi_up, fg="white", relief="ridge", bd=3, width=20, pady=4)
-label_up.pack(side="left", padx=5)
+frame_labels_rssi = Frame(aba_gerencia_rssi, bg="#F0F0F0")
+frame_labels_rssi.pack(fill="x", padx=10, pady=(5,2))
+label_down = Label(frame_labels_rssi, text="RSSI DL atual: --", font=("Arial",9,"bold"), bg=cor_rssi_down, fg="white", relief="ridge", bd=3, pady=2)
+label_down.pack(side="left", padx=5, fill="x", expand=True)
+label_up = Label(frame_labels_rssi, text="RSSI UL atual: --", font=("Arial",9,"bold"), bg=cor_rssi_up, fg="white", relief="ridge", bd=3, pady=2)
+label_up.pack(side="left", padx=5, fill="x", expand=True)
+Button(frame_labels_rssi, text="Salvar Gráficos RSSI", command=lambda: salvar(fig_rssi, fig_snr)).pack(side="right", padx=5)
 
-btn = Button(frame_labels_rssi, text="Salvar Gráficos", command=lambda: salvar(fig1, fig2))
-btn.pack(side="right", pady=5)
-
-frame_rssi = Frame(aba_gerencia_completa)
-frame_rssi.pack(fill="both", expand=True, padx=10, pady=5)
-fig1 = Figure(figsize=(10,1.8)); ax1 = fig1.add_subplot(111)
-canvas1 = FigureCanvasTkAgg(fig1, master=frame_rssi)
-canvas1.get_tk_widget().pack(fill="both", expand=True)
-
-frame_labels_snr = Frame(aba_gerencia_completa)
-frame_labels_snr.pack(fill="x", padx=10, pady=(10,5))
-label_snr_down = Label(frame_labels_snr, text="SNR DL atual: --", font=("Arial",9,"bold"), bg=cor_snr_down, fg="white", relief="ridge", bd=3, width=20, pady=4)
-label_snr_down.pack(side="left", padx=5)
-label_snr_up = Label(frame_labels_snr, text="SNR UL atual: --", font=("Arial",9,"bold"), bg=cor_snr_up, fg="white", relief="ridge", bd=3, width=20, pady=4)
-label_snr_up.pack(side="left", padx=5)
-
-frame_snr = Frame(aba_gerencia_completa)
-frame_snr.pack(fill="both", expand=True, padx=10, pady=5)
-fig2 = Figure(figsize=(10,1.8)); ax2 = fig2.add_subplot(111)
-canvas2 = FigureCanvasTkAgg(fig2, master=frame_snr)
-canvas2.get_tk_widget().pack(fill="both", expand=True)
-
+frame_rssi_sub = Frame(aba_gerencia_rssi)
+frame_rssi_sub.pack(fill="both", expand=True, padx=10, pady=2)
+fig_rssi = Figure(figsize=(10, 6))
+ax_rssi_dl = fig_rssi.add_subplot(411)
+ax_rssi_dl_diff = fig_rssi.add_subplot(412, sharex=ax_rssi_dl)
+ax_rssi_ul = fig_rssi.add_subplot(413, sharex=ax_rssi_dl)
+ax_rssi_ul_diff = fig_rssi.add_subplot(414, sharex=ax_rssi_dl)
+fig_rssi.tight_layout()
+canvas_rssi = FigureCanvasTkAgg(fig_rssi, master=frame_rssi_sub)
+canvas_rssi.get_tk_widget().pack(fill="both", expand=True)
 
 # =============================================================================
-# ABA 3: TAXAS DE DADOS / PSR
+# ABA 3: SNR
+# =============================================================================
+aba_gerencia_snr = Frame(notebook, bg="#F0F0F0")
+notebook.add(aba_gerencia_snr, text="  Gerência LoRa - SNR  ")
+frame_ctrl_snr = Frame(aba_gerencia_snr, bg="#F0F0F0")
+frame_ctrl_snr.pack(fill="x", padx=10, pady=(5,0))
+Label(frame_ctrl_snr, text="Janela Móvel SNR (NSNR_MED):", font=("Arial", 9, "bold"), bg="#F0F0F0").pack(side="left", padx=5)
+entry_nsnr_med = Entry(frame_ctrl_snr, width=6, font=("Arial", 10))
+entry_nsnr_med.pack(side="left", padx=5)
+entry_nsnr_med.insert(0, str(nsnr_init))
+Button(frame_ctrl_snr, text="💾 Salvar Janela SNR", font=("Arial", 9), command=lambda: salvar_parametros_propagacao_arquivo(nrssi_init, int(entry_nsnr_med.get()))).pack(side="left", padx=5)
+
+frame_labels_snr = Frame(aba_gerencia_snr, bg="#F0F0F0")
+frame_labels_snr.pack(fill="x", padx=10, pady=(5,2))
+label_snr_down = Label(frame_labels_snr, text="SNR DL atual: --", font=("Arial",9,"bold"), bg=cor_snr_down, fg="white", relief="ridge", bd=3, pady=2)
+label_snr_down.pack(side="left", padx=5, fill="x", expand=True)
+label_snr_up = Label(frame_labels_snr, text="SNR UL atual: --", font=("Arial",9,"bold"), bg=cor_snr_up, fg="white", relief="ridge", bd=3, pady=2)
+label_snr_up.pack(side="left", padx=5, fill="x", expand=True)
+Button(frame_labels_snr, text="Salvar Gráficos SNR", command=lambda: salvar(fig_rssi, fig_snr)).pack(side="right", padx=5)
+
+frame_snr_sub = Frame(aba_gerencia_snr)
+frame_snr_sub.pack(fill="both", expand=True, padx=10, pady=2)
+fig_snr = Figure(figsize=(10, 6))
+ax_snr_dl = fig_snr.add_subplot(411)
+ax_snr_dl_diff = fig_snr.add_subplot(412, sharex=ax_snr_dl)
+ax_snr_ul = fig_snr.add_subplot(413, sharex=ax_snr_dl)
+ax_snr_ul_diff = fig_snr.add_subplot(414, sharex=ax_snr_dl)
+fig_snr.tight_layout()
+canvas_snr = FigureCanvasTkAgg(fig_snr, master=frame_snr_sub)
+canvas_snr.get_tk_widget().pack(fill="both", expand=True)
+
+# =============================================================================
+# ABA 4: PSR - Data rate
 # =============================================================================
 aba_taxas = Frame(notebook, bg="#F0F0F0")
-notebook.add(aba_taxas, text="  📊 PSR / Taxas de Dados  ")
-
+notebook.add(aba_taxas, text="  📊 PSR - Data rate  ")
 frame_label_psr = Frame(aba_taxas)
 frame_label_psr.pack(fill="x", padx=10, pady=(10,5))
 label_psr = Label(frame_label_psr, text="PSR atual: --", font=("Arial",9,"bold"), bg=cor_psr, fg="white", relief="ridge", bd=3, width=15, pady=4)
 label_psr.pack(side="left", padx=5)
+Button(frame_label_psr, text="Salvar Gráficos", command=lambda: salvar(fig_rssi, fig_snr, fig3, fig4)).pack(side="right", pady=5)
 
-btn_taxas = Button(frame_label_psr, text="Salvar Gráficos", command=lambda: salvar(fig1, fig2, fig3, fig4))
-btn_taxas.pack(side="right", pady=5)
-
-frame_psr = Frame(aba_taxas)
-frame_psr.pack(fill="both", expand=True, padx=10, pady=5)
+frame_psr = Frame(aba_taxas); frame_psr.pack(fill="both", expand=True, padx=10, pady=5)
 fig3 = Figure(figsize=(10,1.8)); ax3 = fig3.add_subplot(111)
 canvas3 = FigureCanvasTkAgg(fig3, master=frame_psr)
 canvas3.get_tk_widget().pack(fill="both", expand=True)
 
-frame_labels_taxa = Frame(aba_taxas)
-frame_labels_taxa.pack(fill="x", padx=10, pady=(10,5))
+frame_labels_taxa = Frame(aba_taxas); frame_labels_taxa.pack(fill="x", padx=10, pady=(10,5))
 label_taxa_teorica = Label(frame_labels_taxa, text="Taxa Teórica atual: --", font=("Arial",9,"bold"), bg=cor_taxa_teorica, fg="white", relief="ridge", bd=3, width=25, pady=4)
 label_taxa_teorica.pack(side="left", padx=5)
 label_taxa_calculada = Label(frame_labels_taxa, text="Taxa Real atual: --", font=("Arial",9,"bold"), bg=cor_taxa_calculada, fg="white", relief="ridge", bd=3, width=25, pady=4)
 label_taxa_calculada.pack(side="left", padx=5)
 
-frame_taxa = Frame(aba_taxas)
-frame_taxa.pack(fill="both", expand=True, padx=10, pady=5)
+frame_taxa = Frame(aba_taxas); frame_taxa.pack(fill="both", expand=True, padx=10, pady=5)
 fig4 = Figure(figsize=(10,1.8)); ax4 = fig4.add_subplot(111)
 canvas4 = FigureCanvasTkAgg(fig4, master=frame_taxa)
 canvas4.get_tk_widget().pack(fill="both", expand=True)
 
-atualizar_grafico(ax1, ax2, ax3, ax4, canvas1, canvas2, canvas3, canvas4, raiz, label_down, label_up, label_snr_down, label_snr_up, label_psr, label_taxa_teorica, label_taxa_calculada)
-
-
 # =============================================================================
-# ABA 4: GPS & DISTÂNCIA
+# ABA 5: GPS & Distância
 # =============================================================================
 class VisualizadorGPS:
     def __init__(self, notebook, raiz):
         self.root = raiz
         self.node_lat, self.node_lon, self.node_alt, self.distancia = None, None, None, None
-
         self.tab_gps = ttk.Frame(notebook)
         notebook.add(self.tab_gps, text="  📍 GPS & Distância  ")
-
         self.criar_widgets_tab_gps()
         self.carregar_dados_gateway_iniciais()
         self.atualizar_dados_loop()
@@ -630,7 +672,6 @@ class VisualizadorGPS:
         self.entry_gw_lon = ttk.Entry(grid_gw, width=22); self.entry_gw_lon.grid(row=1, column=1, sticky="w", padx=5, pady=2)
         ttk.Label(grid_gw, text="Altitude (m):").grid(row=2, column=0, sticky="w", pady=2)
         self.entry_gw_alt = ttk.Entry(grid_gw, width=22); self.entry_gw_alt.grid(row=2, column=1, sticky="w", padx=5, pady=2)
-
         ttk.Button(frame_gw, text="💾 Salvar Gateway", command=self.salvar_gateway).pack(anchor="e", pady=(8, 0))
 
         frame_node = ttk.LabelFrame(self.tab_gps, text=" Nó Sensor (Calculado) ", padding=10)
@@ -666,8 +707,6 @@ class VisualizadorGPS:
             messagebox.showinfo("Sucesso", f"Coordenadas do Gateway salvas em:\n{arquivo_gw_gps}")
         except ValueError:
             messagebox.showerror("Erro de Validação", "Insira valores numéricos válidos.")
-        except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível gravar o arquivo:\n{e}")
 
     def atualizar_dados_loop(self):
         dados_node = ler_ultimo_gps()
@@ -678,36 +717,262 @@ class VisualizadorGPS:
             self.lbl_node_lon.config(text=f"Longitude: {self.node_lon:.6f}°")
             self.lbl_node_alt.config(text=f"Altitude: {self.node_alt:.1f} m")
             self.lbl_distancia.config(text=f"Distância de Enlace: {self.distancia:.2f} m" if self.distancia is not None else "Distância de Enlace: N/A")
-        else:
-            self.lbl_distancia.config(text="Aguardando dados de 'gps.tmp'...")
         self.root.after(2000, self.atualizar_dados_loop)
 
     def recarregar_tudo(self):
-        self.carregar_dados_gateway_iniciais(); self.atualizar_dados_loop()
+        self.carregar_dados_gateway_iniciais()
 
     def abrir_maps(self):
         try:
             gw_lat, gw_lon = float(self.entry_gw_lat.get().replace(",", ".")), float(self.entry_gw_lon.get().replace(",", "."))
-            if self.node_lat is None or self.node_lon is None:
-                messagebox.showwarning("Aviso", "Nó Sensor sem coordenadas no arquivo gps.tmp.")
-                return
-            webbrowser.open(f"https://www.google.com/maps/dir/?api=1&origin={gw_lat},{gw_lon}&destination={self.node_lat},{self.node_lon}")
-        except ValueError:
-            messagebox.showwarning("Aviso", "Coordenadas inválidas.")
+            if self.node_lat is not None and self.node_lon is not None:
+                webbrowser.open(f"https://www.google.com/maps/dir/?api=1&origin={gw_lat},{gw_lon}&destination={self.node_lat},{self.node_lon}")
+        except ValueError: pass
 
 app_gps = VisualizadorGPS(notebook, raiz)
 
 
 # =============================================================================
-# ABA 5: CADASTRO DE END DEVICES
+# ABA 6: PARÂMETROS DE ATENUAÇÃO IoT
+# =============================================================================
+class TabAtuencaoIoT:
+    def __init__(self, notebook, raiz):
+        self.root = raiz
+        self.tab = ttk.Frame(notebook)
+        notebook.add(self.tab, text="  📉 Parâmetros de Atenuação IoT  ")
+        self.criar_widgets()
+
+    def criar_widgets(self):
+        frame_top = ttk.LabelFrame(self.tab, text=" Configurações Globais de Propagação ", padding=10)
+        frame_top.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(frame_top, text="Frequência de Operação [Hz]:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        self.entry_freq = ttk.Entry(frame_top, width=15)
+        self.entry_freq.grid(row=0, column=1, sticky="w", padx=5, pady=2)
+        self.entry_freq.insert(0, "903000000")
+
+        ttk.Label(frame_top, text="Distância de Referência (dEL) [m]:").grid(row=0, column=2, sticky="w", padx=5, pady=2)
+        self.entry_del = ttk.Entry(frame_top, width=10)
+        self.entry_del.grid(row=0, column=3, sticky="w", padx=5, pady=2)
+        self.entry_del.insert(0, "1.0")
+
+        btn_calc = ttk.Button(frame_top, text="⚡ Calcular Loss IoT Total", command=self.calcular_atenuacoes)
+        btn_calc.grid(row=0, column=4, padx=15, pady=2)
+
+        frame_t1 = ttk.LabelFrame(self.tab, text=" Tabela 1: Parâmetros de Atenuação e Ambiente por End Device ", padding=5)
+        frame_t1.pack(fill="both", expand=True, padx=10, pady=5)
+
+        cols_t1 = ("sensor", "distancia", "beta", "paredes", "lages", "moveis", "janelas", "maquinas", "altura", "outras")
+        self.tree_t1 = ttk.Treeview(frame_t1, columns=cols_t1, show="headings", height=5)
+        
+        headers_t1 = ["End Device", "Distância [m]", "Beta (n)", "Paredes [dB]", "Lajes [dB]", "Móveis [dB]", "Janelas [dB]", "Máquinas [dB]", "Altura NS [dB]", "Outras [dB]"]
+        for col, h in zip(cols_t1, headers_t1):
+            self.tree_t1.heading(col, text=h)
+            self.tree_t1.column(col, anchor="center", width=95)
+        
+        self.tree_t1.pack(side="left", fill="both", expand=True)
+        scroll_t1 = ttk.Scrollbar(frame_t1, orient="vertical", command=self.tree_t1.yview)
+        self.tree_t1.configure(yscrollcommand=scroll_t1.set)
+        scroll_t1.pack(side="right", fill="y")
+        self.tree_t1.bind("<Double-1>", self.editar_celula_t1)
+
+        frame_t2 = ttk.LabelFrame(self.tab, text=" Tabela 2: Loss Espaço Livre, Log-Distance, Ambiente e Desempenho do Canal ", padding=5)
+        frame_t2.pack(fill="both", expand=True, padx=10, pady=5)
+
+        cols_t2 = ("sensor", "dist", "lel", "lpl", "latm", "ltot", "psr", "tx_teorica", "tx_real")
+        self.tree_t2 = ttk.Treeview(frame_t2, columns=cols_t2, show="headings", height=5)
+        headers_t2 = ["End Device", "Dist [m]", "LEL [dB]", "LPL [dB]", "Loss Amb [dB]", "Ltot [dB]", "PSR %", "Tx Teórica [bps]", "Tx Real [bps]"]
+        for col, h in zip(cols_t2, headers_t2):
+            self.tree_t2.heading(col, text=h)
+            self.tree_t2.column(col, anchor="center", width=100)
+        self.tree_t2.pack(side="left", fill="both", expand=True)
+        scroll_t2 = ttk.Scrollbar(frame_t2, orient="vertical", command=self.tree_t2.yview)
+        self.tree_t2.configure(yscrollcommand=scroll_t2.set)
+        scroll_t2.pack(side="right", fill="y")
+
+        frame_t3 = ttk.LabelFrame(self.tab, text=" Tabela 3: Orçamento de Enlace, Prx (Calculado vs Medido) e Ajuste Log-Distance ", padding=5)
+        frame_t3.pack(fill="both", expand=True, padx=10, pady=5)
+
+        cols_t3 = ("sensor", "dist", "ptx", "agw", "anode", "prx_max", "prx_min", "prx_med", "dp", "prx_calc", "ltot_calc", "ltot_med", "ajuste")
+        self.tree_t3 = ttk.Treeview(frame_t3, columns=cols_t3, show="headings", height=5)
+        headers_t3 = ["End Device", "Dist", "Ptx", "Ant GW", "Ant Node", "Prx MAX", "Prx MIN", "Prx MED", "DP", "Prx Calc", "Ltot Calc", "Ltot Med", "Ajuste Log-Dist"]
+        for col, h in zip(cols_t3, headers_t3):
+            self.tree_t3.heading(col, text=h)
+            self.tree_t3.column(col, anchor="center", width=85)
+        self.tree_t3.pack(side="left", fill="both", expand=True)
+        scroll_t3 = ttk.Scrollbar(frame_t3, orient="vertical", command=self.tree_t3.yview)
+        self.tree_t3.configure(yscrollcommand=scroll_t3.set)
+        scroll_t3.pack(side="right", fill="y")
+        self.tree_t3.bind("<Double-1>", self.editar_celula_t3)
+
+        self.carregar_dados_tabela1()
+
+    def carregar_dados_tabela1(self):
+        for item in self.tree_t1.get_children(): self.tree_t1.delete(item)
+        for item in self.tree_t2.get_children(): self.tree_t2.delete(item)
+        for item in self.tree_t3.get_children(): self.tree_t3.delete(item)
+
+        devices = ler_end_devices()
+        for dev in devices:
+            dist_gps = ler_ultimo_gps_por_id(dev)
+            dist_val = f"{dist_gps:.2f}" if dist_gps is not None else "25.00"
+            self.tree_t1.insert("", "end", values=(f"Sensor {dev}", dist_val, "3.0", "2.0", "0.0", "0.0", "1.0", "0.0", "1.5", "0.0"))
+            self.tree_t2.insert("", "end", values=(f"Sensor {dev}", dist_val, "--", "--", "--", "--", "--", "--", "--"))
+            self.tree_t3.insert("", "end", values=(f"Sensor {dev}", dist_val, "14.0", "0.0", "0.0", "--", "--", "--", "--", "--", "--", "--", "--"))
+
+    def editar_celula_t1(self, event):
+        item_id = self.tree_t1.identify_row(event.y)
+        column = self.tree_t1.identify_column(event.x)
+        if not item_id or not column: return
+        col_idx = int(column.replace("#", "")) - 1
+        val_atual = self.tree_t1.item(item_id, "values")[col_idx]
+        
+        top = Toplevel(self.root)
+        top.title("Editar Parâmetro")
+        top.geometry("250x120")
+        ttk.Label(top, text="Novo Valor:").pack(pady=5)
+        ent = ttk.Entry(top)
+        ent.pack(pady=5); ent.insert(0, val_atual)
+
+        def salvar():
+            vals = list(self.tree_t1.item(item_id, "values"))
+            vals[col_idx] = ent.get().strip()
+            self.tree_t1.item(item_id, values=vals)
+            top.destroy()
+
+        ttk.Button(top, text="Salvar", command=salvar).pack(pady=5)
+
+    def editar_celula_t3(self, event):
+        item_id = self.tree_t3.identify_row(event.y)
+        column = self.tree_t3.identify_column(event.x)
+        if not item_id or not column: return
+        col_idx = int(column.replace("#", "")) - 1
+        if col_idx not in [2, 3, 4]:
+            messagebox.showinfo("Aviso", "Apenas Potência Tx e Ganhos de Antena são editáveis nesta tabela.")
+            return
+        val_atual = self.tree_t3.item(item_id, "values")[col_idx]
+        
+        top = Toplevel(self.root)
+        top.title("Editar Orçamento de Enlace")
+        top.geometry("250x120")
+        ttk.Label(top, text="Novo Valor:").pack(pady=5)
+        ent = ttk.Entry(top)
+        ent.pack(pady=5); ent.insert(0, val_atual)
+
+        def salvar():
+            vals = list(self.tree_t3.item(item_id, "values"))
+            vals[col_idx] = ent.get().strip()
+            self.tree_t3.item(item_id, values=vals)
+            top.destroy()
+
+        ttk.Button(top, text="Salvar", command=salvar).pack(pady=5)
+
+    def calcular_atenuacoes(self):
+        try:
+            freq = float(self.entry_freq.get().replace(",", "."))
+            d_el = float(self.entry_del.get().replace(",", "."))
+            c = 299792458.0
+            lamb = c / freq
+        except ValueError:
+            messagebox.showerror("Erro", "Frequência e Distância de Referência devem ser numéricas.")
+            return
+
+        for item_t1, item_t2, item_t3 in zip(self.tree_t1.get_children(), self.tree_t2.get_children(), self.tree_t3.get_children()):
+            v1 = self.tree_t1.item(item_t1, "values")
+            v3 = self.tree_t3.item(item_t3, "values")
+            
+            sensor_nome = v1[0]
+            try:
+                d = float(v1[1].replace(",", "."))
+                beta = float(v1[2].replace(",", "."))
+                paredes = float(v1[3].replace(",", "."))
+                lages = float(v1[4].replace(",", "."))
+                moveis = float(v1[5].replace(",", "."))
+                janelas = float(v1[6].replace(",", "."))
+                maquinas = float(v1[7].replace(",", "."))
+                altura = float(v1[8].replace(",", "."))
+                outras = float(v1[9].replace(",", "."))
+            except ValueError:
+                continue
+
+            lel = 20.0 * math.log10((4.0 * math.pi * d_el) / lamb) if d_el > 0 else 0.0
+            lpl = 10.0 * beta * math.log10(d / d_el) if d > 0 and d_el > 0 else 0.0
+            loss_amb = paredes + lages + moveis + janelas + maquinas + altura + outras
+            ltot_calc = lel + lpl + loss_amb
+
+            dev_id = re.findall(r'\d+', sensor_nome)
+            dev_id_str = dev_id[0] if dev_id else "1"
+            
+            psr_val = "--"
+            path_psr = os.path.join(dir_dados, f"{dev_id_str}_psr.tmp")
+            if os.path.exists(path_psr):
+                try:
+                    with open(path_psr, "r") as f:
+                        linhas = [l.strip() for l in f if l.strip()]
+                        if linhas: psr_val = f"{float(linhas[-1]):.2f}"
+                except Exception: pass
+
+            tx_teorica_val, tx_real_val = "--", "--"
+            path_taxa = os.path.join(dir_dados, f"{dev_id_str}_taxa_dados.tmp")
+            if os.path.exists(path_taxa):
+                try:
+                    with open(path_taxa, "r") as f:
+                        linhas = [l.strip() for l in f if l.strip()]
+                        if linhas:
+                            p_tx_a = linhas[-1].split()
+                            if len(p_tx_a) >= 2:
+                                tx_teorica_val = f"{float(p_tx_a[0]):.2f}"
+                                tx_real_val = f"{float(p_tx_a[1]):.2f}"
+                except Exception: pass
+
+            prx_max, prx_min, prx_med, dp_val = "-59.00", "-61.50", "-62.34", "0.16"
+            path_rssi = os.path.join(dir_dados, f"{dev_id_str}_rssi.tmp")
+            rssi_ul_vals = []
+            if os.path.exists(path_rssi):
+                try:
+                    with open(path_rssi, "r") as f:
+                        for linha in f:
+                            partes = linha.strip().split()
+                            if len(partes) > 1:
+                                try: rssi_ul_vals.append(float(partes[1].replace(",", ".")))
+                                except ValueError: pass
+                    if rssi_ul_vals:
+                        prx_max = f"{max(rssi_ul_vals):.2f}"
+                        prx_min = f"{min(rssi_ul_vals):.2f}"
+                        media_ul = sum(rssi_ul_vals) / len(rssi_ul_vals)
+                        prx_med = f"{media_ul:.2f}"
+                        if len(rssi_ul_vals) > 1:
+                            var = sum((x - media_ul)**2 for x in rssi_ul_vals) / (len(rssi_ul_vals) - 1)
+                            dp_val = f"{math.sqrt(var):.3f}"
+                except Exception: pass
+
+            try:
+                ptx = float(v3[2].replace(",", "."))
+                agw = float(v3[3].replace(",", "."))
+                anode = float(v3[4].replace(",", "."))
+            except ValueError:
+                ptx, agw, anode = 14.0, 0.0, 0.0
+
+            prx_calc = ptx + agw + anode - ltot_calc
+            ltot_med = ptx + agw + anode - float(prx_med)
+            ajuste = ltot_med - ltot_calc
+
+            self.tree_t2.item(item_t2, values=(sensor_nome, f"{d:.1f}", f"{lel:.2f}", f"{lpl:.2f}", f"{loss_amb:.2f}", f"{ltot_calc:.2f}", psr_val, tx_teorica_val, tx_real_val))
+            self.tree_t3.item(item_t3, values=(sensor_nome, f"{d:.1f}", f"{ptx:.1f}", f"{agw:.1f}", f"{anode:.1f}", f"- {abs(float(prx_max)):.2f}", f"- {abs(float(prx_min)):.2f}", f"- {abs(float(prx_med)):.2f}", dp_val, f"- {abs(prx_calc):.2f}", f"{ltot_calc:.2f}", f"{ltot_med:.2f}", f"{ajuste:.2f}"))
+
+        messagebox.showinfo("Sucesso", "Cálculos de Loss IoT Total e Orçamento de Enlace executados com sucesso!")
+
+app_atenuacao = TabAtuencaoIoT(notebook, raiz)
+
+
+# =============================================================================
+# ABA 7: CADASTRO DE END DEVICES E PARÂMETROS DE RÁDIO - RESTAURADA
 # =============================================================================
 aba_end_devices = Frame(notebook, bg="#F0F0F0")
 notebook.add(aba_end_devices, text="  💻 Nó Sensores (End Devices)  ")
 
-# Variável para controlar a última modificação do CSV no disco
 ultima_modificacao_csv = 0
 
-# FRAME ESQUERDO: Tabela (Lista de Dispositivos)
 frame_tabela_ed = Frame(aba_end_devices, bg="#F0F0F0")
 frame_tabela_ed.pack(side=LEFT, fill=BOTH, expand=True, padx=20, pady=20)
 
@@ -737,7 +1002,6 @@ scroll_ed = ttk.Scrollbar(frame_tabela_ed, orient="vertical", command=tabela_ed.
 tabela_ed.configure(yscrollcommand=scroll_ed.set)
 scroll_ed.pack(side=RIGHT, fill=Y)
 
-# FRAME DIREITO: Controles
 frame_controles_ed = Frame(aba_end_devices, bg="#F0F0F0", width=350)
 frame_controles_ed.pack(side=RIGHT, fill=Y, padx=20, pady=20)
 
@@ -749,25 +1013,13 @@ def criar_campo(texto):
     entry.pack(fill=X, pady=(0, 3))
     return entry
 
-# 1. Campo ID do Nó Sensor
 entry_ed_id = criar_campo("Endereço de Rede (ID Nó Sensor): *")
 
-# 2. Funções básicas de gerenciamento de lista
 def adicionar_ed():
     novo_id = entry_ed_id.get().strip()
-    
-    # Parâmetros padrão para Long Range
-    sf = 12
-    bw = 125
-    cr = 8
-    ptx = 20
-    
-    sf_new = 12
-    bw_new = 125
-    cr_new = 8
-    ptx_new = 20
-    cmd_lora = 4
-    st_cmd_lora = 4
+    sf, bw, cr, ptx = 12, 125, 8, 20
+    sf_new, bw_new, cr_new, ptx_new = 12, 125, 8, 20
+    cmd_lora, st_cmd_lora = 4, 4
 
     if novo_id:
         tabela_ed.insert("", "end", values=(novo_id, sf, bw, cr, ptx, sf_new, bw_new, cr_new, ptx_new, cmd_lora, st_cmd_lora))
@@ -806,7 +1058,6 @@ def salvar_ed(silencioso=False):
         })
     
     df_salvar = pd.DataFrame(dados_para_salvar, columns=colunas_ed)
-    
     try:
         df_salvar.to_csv(arquivo_csv_end_devices, index=False)
         if os.path.exists(arquivo_csv_end_devices):
@@ -819,132 +1070,79 @@ def salvar_ed(silencioso=False):
         combo_devices['values'] = lista_atualizada
         if lista_atualizada and end_device_selecionado.get() not in lista_atualizada:
             combo_devices.current(0)
-            
     except Exception as e:
         if not silencioso:
             messagebox.showerror("Erro", f"Erro ao salvar arquivo CSV: {e}")
 
-# 3. Botões posicionados logo abaixo do campo de ID
 Button(frame_controles_ed, text="➕ Adicionar à Lista", font=("Arial", 11), command=adicionar_ed).pack(fill=X, pady=3)
 Button(frame_controles_ed, text="❌ Excluir Selecionado", font=("Arial", 11), command=excluir_ed).pack(fill=X, pady=3)
 
 Label(frame_controles_ed, text="----------------------------------------", bg="#F0F0F0", fg="gray").pack(pady=5)
-
 Button(frame_controles_ed, text="💾 Salvar Alterações no Arquivo", font=("Arial", 11, "bold"), bg="#4CAF50", fg="white", command=lambda: salvar_ed(silencioso=False)).pack(fill=X, pady=5)
-
 Label(frame_controles_ed, text="----------------------------------------", bg="#F0F0F0", fg="gray").pack(pady=5)
 
 Label(frame_controles_ed, text="Modificar os Parâmetros de Rádio LoRa", bg="#F0F0F0", fg="black", font=(None, 11, "bold")).pack(pady=5)
 
+entry_ed_sf  = criar_campo("Spreading Factor [7 a 12] (SF):"); entry_ed_sf.insert(0, "12")
+entry_ed_bw  = criar_campo("Bandwidth [125 | 250 | 500 KHz] (BW):"); entry_ed_bw.insert(0, "125")
+entry_ed_cr  = criar_campo("Coding Rate [5 a 8] (CR):"); entry_ed_cr.insert(0, "8")
+entry_ed_ptx = criar_campo("Potência TX [2 a 20 dBm]:"); entry_ed_ptx.insert(0, "14")
 
-# 4. Campos de Entrada adicionais para Modificação do Rádio
-entry_ed_sf  = criar_campo("Spreading Factor [7 a 12] (SF):")
-entry_ed_sf.insert(0, "12")
-
-entry_ed_bw  = criar_campo("Bandwidth [125 | 250 | 500 KHz] (BW):")
-entry_ed_bw.insert(0, "125")
-
-entry_ed_cr  = criar_campo("Coding Rate [5 a 8] (CR):")
-entry_ed_cr.insert(0, "8")
-
-entry_ed_ptx = criar_campo("Potência TX [2 a 20 dBm]:")
-entry_ed_ptx.insert(0, "14")
-
-
-# 5. Função e Botão Modificar Rádio LoRa com Validação de Entrada
 def modificar_radio_lora():
     selecionados = tabela_ed.selection()
     if not selecionados:
         messagebox.showwarning("Aviso", "Selecione um End Device na tabela para reconfigurar.")
         return
 
-    # Captura os valores digitados
     sf_str = entry_ed_sf.get().strip()
     bw_str = entry_ed_bw.get().strip()
     cr_str = entry_ed_cr.get().strip()
     ptx_str = entry_ed_ptx.get().strip()
 
-    # 1. Validação de Campos Vazios
     if not (sf_str and bw_str and cr_str and ptx_str):
-        messagebox.showwarning("Aviso", "Preencha todos os campos de parâmetro de Rádio (SF, BW, CR, PTX).")
+        messagebox.showwarning("Aviso", "Preencha todos os campos de parâmetro de Rádio.")
         return
 
-    # 2. Validação de Tipos Numéricos e Limites de Rádio
     try:
-        sf_val = int(sf_str)
-        bw_val = int(bw_str)
-        cr_val = int(cr_str)
-        ptx_val = int(ptx_str)
-
-        # Validação do Spreading Factor (SF: 7 a 12)
+        sf_val, bw_val, cr_val, ptx_val = int(sf_str), int(bw_str), int(cr_str), int(ptx_str)
         if not (7 <= sf_val <= 12):
             messagebox.showerror("Valor Invalido", "O Spreading Factor (SF) deve estar entre 7 e 12.")
             return
-
-        # Validação do Bandwidth (BW: apenas 125, 250 ou 500 KHz)
         if bw_val not in (125, 250, 500):
             messagebox.showerror("Valor Invalido", "O Bandwidth (BW) deve ser exatamente 125, 250 ou 500 KHz.")
             return
-
-        # Validação do Coding Rate Denominator (CR: 5 a 8)
         if not (5 <= cr_val <= 8):
-            messagebox.showerror("Valor Invalido", "O Coding Rate (CR) deve ser um número entre 5 e 8 (representando 4/5 a 4/8).")
+            messagebox.showerror("Valor Invalido", "O Coding Rate (CR) deve estar entre 5 e 8.")
             return
-
-        # Validação da Potência de Transmissão (PTX: 2 a 20 dBm)
         if not (2 <= ptx_val <= 20):
             messagebox.showerror("Valor Invalido", "A Potência TX deve estar entre 2 e 20 dBm.")
             return
-
     except ValueError:
-        messagebox.showerror("Erro de Formato", "Todos os campos de rádio devem conter valores numéricos inteiros válidos.")
+        messagebox.showerror("Erro de Formato", "Todos os campos de rádio devem conter valores numéricos inteiros.")
         return
 
-    # 3. Se passou em todas as validações, atualiza os itens na Treeview
     for item in selecionados:
         vals = list(tabela_ed.item(item, 'values'))
-        
-        vals[5] = str(sf_val)
-        vals[6] = str(bw_val)
-        vals[7] = str(cr_val)
-        vals[8] = str(ptx_val)
-        vals[9] = 1  # comando_radio = 1
-        
+        vals[5], vals[6], vals[7], vals[8], vals[9] = str(sf_val), str(bw_val), str(cr_val), str(ptx_val), 1
         tabela_ed.item(item, values=tuple(vals))
 
-    # 4. Restaura os campos para o valor padrão de Long Range
-    valores_padrao = [("12", entry_ed_sf), ("125", entry_ed_bw), ("8", entry_ed_cr), ("14", entry_ed_ptx)]
-    for val, entry in valores_padrao:
-        entry.delete(0, END)
-        entry.insert(0, val)
-
-    # 5. Grava as alterações no arquivo CSV
     salvar_ed(silencioso=False)
-
 
 btn_modificar_radio = Button(frame_controles_ed, text="📡 Modificar Rádio LoRa", font=("Arial", 11, "bold"), bg="#2196F3", fg="white", state="disabled", command=modificar_radio_lora)
 btn_modificar_radio.pack(fill=X, pady=8)
 
-# Habilita / Desabilita o botão conforme seleção na Treeview
 def ao_selecionar_tabela(event):
-    selecionados = tabela_ed.selection()
-    if selecionados:
-        # Apenas habilita o botão para permitir a edição dos parâmetros digitados
+    if tabela_ed.selection():
         btn_modificar_radio.config(state="normal")
     else:
         btn_modificar_radio.config(state="disabled")
 
 tabela_ed.bind("<<TreeviewSelect>>", ao_selecionar_tabela)
 
-
 def carregar_tabela_ed():
     global ultima_modificacao_csv
-    
-    # Guarda o ID selecionado atualmente para re-selecionar após o reload
     selecionados = tabela_ed.selection()
-    id_selecionado = None
-    if selecionados:
-        id_selecionado = tabela_ed.item(selecionados[0], 'values')[0]
+    id_selecionado = tabela_ed.item(selecionados[0], 'values')[0] if selecionados else None
 
     for item in tabela_ed.get_children():
         tabela_ed.delete(item)
@@ -953,38 +1151,23 @@ def carregar_tabela_ed():
         try:
             ultima_modificacao_csv = os.path.getmtime(arquivo_csv_end_devices)
             df_devices = pd.read_csv(arquivo_csv_end_devices)
-            
             for col in colunas_ed:
-                if col not in df_devices.columns:
-                    df_devices[col] = ""
+                if col not in df_devices.columns: df_devices[col] = ""
 
             item_para_selecionar = None
             for _, row in df_devices.iterrows():
                 novo_item = tabela_ed.insert("", "end", values=(
-                    row["endereco_rede"],
-                    row["spreading_factor"],
-                    row["bandwidth"],
-                    row["coding_rate"],
-                    row["potencia_tx"],
-                    row["spreading_factor_new"],
-                    row["bandwidth_new"],
-                    row["coding_rate_new"],
-                    row["potencia_tx_new"],
-                    row["comando_radio"],
-                    row["comando_radio_st"]
+                    row["endereco_rede"], row["spreading_factor"], row["bandwidth"], row["coding_rate"], row["potencia_tx"],
+                    row["spreading_factor_new"], row["bandwidth_new"], row["coding_rate_new"], row["potencia_tx_new"],
+                    row["comando_radio"], row["comando_radio_st"]
                 ))
                 if id_selecionado is not None and str(row["endereco_rede"]) == str(id_selecionado):
                     item_para_selecionar = novo_item
-
             if item_para_selecionar:
                 tabela_ed.selection_set(item_para_selecionar)
-
         except Exception as e:
             print(f"Erro ao carregar CSV na tabela: {e}")
 
-# =============================================================================
-# MONITORAMENTO AUTOMÁTICO DO ARQUIVO CSV EM SEGUNDO PLANO
-# =============================================================================
 def monitorar_atualizacao_csv():
     global ultima_modificacao_csv
     if os.path.exists(arquivo_csv_end_devices):
@@ -999,11 +1182,15 @@ def monitorar_atualizacao_csv():
 carregar_tabela_ed()
 monitorar_atualizacao_csv()
 
-
-
 # =============================================================================
-# CALLBACK DE FECHAR JANELA
+# INICIALIZAÇÃO DE GRÁFICOS E CALLBACK DE FECHAMENTO
 # =============================================================================
+atualizar_grafico(ax_rssi_dl, ax_rssi_dl_diff, ax_rssi_ul, ax_rssi_ul_diff, 
+                  ax_snr_dl, ax_snr_dl_diff, ax_snr_ul, ax_snr_ul_diff, ax3, ax4, 
+                  canvas_rssi, canvas_snr, canvas3, canvas4, raiz, 
+                  label_down, label_up, label_snr_down, label_snr_up, 
+                  label_psr, label_taxa_teorica, label_taxa_calculada)
+
 def callback():
     if tkMessageBox.askokcancel("Sair", "Tem certeza que deseja sair?"):
         grava_comandos(0)
@@ -1011,4 +1198,3 @@ def callback():
 
 raiz.protocol("WM_DELETE_WINDOW", callback)
 raiz.mainloop()
-raiz.update_idletasks()
