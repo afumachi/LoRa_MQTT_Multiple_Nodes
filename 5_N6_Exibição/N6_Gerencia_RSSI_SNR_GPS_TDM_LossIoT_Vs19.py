@@ -649,14 +649,14 @@ canvas4 = FigureCanvasTkAgg(fig4, master=frame_taxa)
 canvas4.get_tk_widget().pack(fill="both", expand=True)
 
 # =============================================================================
-# ABA 5: GPS & Distância
+# ABA 5: Parâmetros Loss & Distância
 # =============================================================================
 class VisualizadorGPS:
     def __init__(self, notebook, raiz):
         self.root = raiz
         self.node_lat, self.node_lon, self.node_alt, self.distancia = None, None, None, None
         self.tab_gps = ttk.Frame(notebook)
-        notebook.add(self.tab_gps, text="  📍 GPS & Distância  ")
+        notebook.add(self.tab_gps, text="  📍 Parâmetros Loss & Distância  ")
         self.criar_widgets_tab_gps()
         self.carregar_dados_gateway_iniciais()
         self.atualizar_dados_loop()
@@ -739,7 +739,7 @@ class TabAtuencaoIoT:
     def __init__(self, notebook, raiz):
         self.root = raiz
         self.tab = ttk.Frame(notebook)
-        notebook.add(self.tab, text="  📉 Parâmetros de Atenuação IoT  ")
+        notebook.add(self.tab, text="  📉 Cálculos de Loss IoT  ")
         self.criar_widgets()
 
     def criar_widgets(self):
