@@ -59,7 +59,6 @@ MQTT_QOS    = 1
 estado_mqtt = 0
 Pacote_UL_payload = None
 
-
 # ===== Arquivo Log globais =====
 lock_arquivo_log = threading.Lock()
 
