@@ -193,7 +193,7 @@ while True:
 
             pacote_recebido = 0
             for j in range(15):
-                if ((int(partes[23 + j]) != 9) and (UL_B8 == 0) and (UL_B19 == 1)):
+                if ((int(partes[25 + j]) != 9) and (UL_B8 == 0) and (UL_B19 == 1)):
                     pacote_recebido = 1
                     break
             

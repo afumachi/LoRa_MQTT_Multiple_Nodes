@@ -40,7 +40,7 @@ void Phy_radio_receive_DL() {
   // Caso positivo, identifica o tamanho do Payload do Pacote
   if (packetSize) {
     
-    digitalWrite(LED_VERDE_PIN, HIGH); // Liga Led Verde Indicando Inicio da leitura do Pacote
+    //digitalWrite(LED_VERDE_PIN, HIGH); // Liga Led Verde Indicando Inicio da leitura do Pacote
     
     //Serial.println("Pacote DL IDENTIFICADO");
     // Realiza a leitura caso Payload do Pacote seja compatível com o Pacote de 6 Bytes
@@ -201,7 +201,7 @@ void Phy_radio_send_UL() {
   PacoteUL[1] = SNR_DL;
 
   // Pisca o LED de transmissão de pacote UL
-  digitalWrite(LED_VERMELHO_PIN, HIGH); // Início da Transmissão
+  //digitalWrite(LED_VERMELHO_PIN, HIGH); // Início da Transmissão
 
   LoRa.beginPacket();                 // Inicia o envio do pacote ao rádio
   

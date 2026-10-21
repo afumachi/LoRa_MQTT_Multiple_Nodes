@@ -47,7 +47,7 @@ GW_ALT_DEFAULT = 770.0
 # REFRESH DAS TELAS E CONFIGURAÇÕES
 # =============================================================================
 REFRESH_MS = 500
-MAX_PONTOS = 10000
+MAX_PONTOS = 2000
 
 cor_rssi_down = "#1f77b4"
 cor_rssi_up = "#ff7f0e"
@@ -249,6 +249,48 @@ def atualizar_grafico(ax_rssi_dl, ax_rssi_dl_diff, ax_rssi_ul, ax_rssi_ul_diff,
     label_taxa_teorica.config(text=f"Taxa Teórica atual: {round(taxa_teorica[-1],3)} bps" if taxa_teorica else "Taxa Teórica atual: --")
     label_taxa_calculada.config(text=f"Taxa Real atual: {round(taxa_calculada[-1],3)} bps" if taxa_calculada else "Taxa Real atual: --")
 
+    # modif 21/10/2026
+
+    # =========================================================================
+    # CORREÇÃO PARA O BLOCO DE RSSI (DOWNLINK E UPLINK)
+    # =========================================================================
+    ax_rssi_dl.clear(); ax_rssi_dl_diff.clear(); ax_rssi_ul.clear(); ax_rssi_ul_diff.clear()
+    
+    if rssi_down:
+        x_dl = range(len(rssi_down))
+        ax_rssi_dl.plot(x_dl, rssi_down, label="RSSI DL", color=cor_rssi_down, linewidth=1.2)
+        
+        # Plota a média móvel independentemente de ter atingido o tamanho total da lista
+        if any(v is not None for v in mm_rssi_down):
+            ax_rssi_dl.plot(x_dl, mm_rssi_down, label="MM RSSI DL", linestyle="--", color="black")
+            
+        ax_rssi_dl.legend(loc='upper right', fontsize=7)
+        ax_rssi_dl.set_title("RSSI Downlink & Média Móvel", fontsize=8)
+        
+        if any(v is not None for v in diff_rssi_down):
+            ax_rssi_dl_diff.plot(x_dl, diff_rssi_down, label="Dif RSSI DL", color="#d62728", linewidth=1.2)
+            ax_rssi_dl_diff.axhline(0, color="gray", linestyle=":")
+            ax_rssi_dl_diff.legend(loc='upper right', fontsize=7)
+            ax_rssi_dl_diff.set_title("Diferença RSSI Downlink", fontsize=8)
+
+    if rssi_up:
+        x_up = range(len(rssi_up))
+        ax_rssi_ul.plot(x_up, rssi_up, label="RSSI UL", color=cor_rssi_up, linewidth=1.2)
+        
+        if any(v is not None for v in mm_rssi_up):
+            ax_rssi_ul.plot(x_up, mm_rssi_up, label="MM RSSI UL", linestyle="--", color="black")
+            
+        ax_rssi_ul.legend(loc='upper right', fontsize=7)
+        ax_rssi_ul.set_title("RSSI Uplink & Média Móvel", fontsize=8)
+        
+        if any(v is not None for v in diff_rssi_up):
+            ax_rssi_ul_diff.plot(x_up, diff_rssi_up, label="Dif RSSI UL", color="#9467bd", linewidth=1.2)
+            ax_rssi_ul_diff.axhline(0, color="gray", linestyle=":")
+            ax_rssi_ul_diff.legend(loc='upper right', fontsize=7)
+            ax_rssi_ul_diff.set_title("Diferença RSSI Uplink", fontsize=8)
+
+
+    '''
     ax_rssi_dl.clear(); ax_rssi_dl_diff.clear(); ax_rssi_ul.clear(); ax_rssi_ul_diff.clear()
     if rssi_down:
         x = range(len(rssi_down))
@@ -273,7 +315,7 @@ def atualizar_grafico(ax_rssi_dl, ax_rssi_dl_diff, ax_rssi_ul, ax_rssi_ul_diff,
             ax_rssi_ul_diff.axhline(0, color="gray", linestyle=":")
             ax_rssi_ul_diff.legend(loc='upper right', fontsize=7)
             ax_rssi_ul_diff.set_title("Diferença RSSI Uplink", fontsize=8)
-
+    '''
     ax_snr_dl.clear(); ax_snr_dl_diff.clear(); ax_snr_ul.clear(); ax_snr_ul_diff.clear()
     if snr_down:
         x_s = range(len(snr_down))

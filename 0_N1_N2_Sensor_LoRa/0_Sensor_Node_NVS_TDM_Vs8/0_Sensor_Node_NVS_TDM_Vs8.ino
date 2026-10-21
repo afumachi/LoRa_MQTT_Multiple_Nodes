@@ -11,8 +11,8 @@
 
 // Remova o comentário da linha referente ao módulo que você está utilizando e comente a outro
 
-//#define PKLORA_ESP32 // HARDWARE COM ESP32
-#define AFLORA_ESP32 // HARDWARE COM ESP32
+#define PKLORA_ESP32 // HARDWARE COM ESP32
+//#define AFLORA_ESP32 // HARDWARE COM ESP32
 //#define PKLORA_NODEMCU // HARDWARE COM ESP12E - NODEMCU
 
 // Caso tenha sensor GPS integrado ao Módulo
@@ -57,8 +57,14 @@
 #define signalBandwidthSetup       125E3    // signal bandwidth in Hz
 #define codingRateDenominatorSetup 8        // denominator of the coding rate
 
+
+// ============== CAMADA MAC
+
 #define TAMANHO_PACOTE_DL 20
 #define TAMANHO_PACOTE_UL 30
+
+byte PacoteDL[TAMANHO_PACOTE_DL];
+byte PacoteUL[TAMANHO_PACOTE_UL];
 
 // Habilita ou disabilita o uso CRC, por padrão o CRC não é usado.
 //#define loraCRC
@@ -70,14 +76,10 @@ int RSSI_DL;     // Variável de mapeamento da RSSI em um valor de 0 a 255 para 
 float SNR_DL_bruto;   // Variável com a relação sinal ruído
 uint8_t SNR_DL;           // Variável inteira para enviar a SNR, que será convertida para a SNR original no Python
 
-// ============== CAMADA MAC
-
-byte PacoteDL[TAMANHO_PACOTE_DL];
-byte PacoteUL[TAMANHO_PACOTE_UL];
 
 // ============= CAMADA DE REDE
 // Identificação do sensor e tamanho de pacote
-int ID_sensor = 2; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
+int ID_sensor = 1; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
 int ID_gateway = 0;    // Variável com o ID_gateway que estará no pacote de DL byte 10
 
 // ============== CAMADA DE TRANSPORTE

@@ -1,3 +1,4 @@
 endereco_rede,spreading_factor,bandwidth,coding_rate,potencia_tx,spreading_factor_new,bandwidth_new,coding_rate_new,potencia_tx_new,comando_radio,comando_radio_st
 2,9,125,5,2,9,125,5,2,4,6
 3,12,125,5,20,12,125,5,20,4,6
+1,12,125,8,20,12,125,8,20,4,6

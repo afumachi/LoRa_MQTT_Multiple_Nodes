@@ -16,7 +16,7 @@
 
 // Caso tenha sensor GPS integrado ao Módulo
 //#define SEM_GPS // MoT 20 Bytes
-//#define GPS_INTEGRADO // MoT 30 Bytes
+#define GPS_INTEGRADO // MoT 30 Bytes
 
 // Caso tenha sensor OLED integrado ao Módulo
 //#define OLED_INTEGRADO

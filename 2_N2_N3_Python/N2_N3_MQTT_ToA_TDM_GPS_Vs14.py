@@ -49,8 +49,8 @@ PORTA_MQTT    = 1883
 #TOPIC_DL      = "mot_lora_mqtt_FEE23/gateway/downlink"  #// Python → ESP32
 #TOPIC_UL      = "mot_lora_mqtt_FEE23/gateway/uplink"    #// ESP32  → Python
 
-TOPIC_DL      = "mot_aaf_194104/gateway/downlink"  # Python → ESP32
-TOPIC_UL      = "mot_aaf_194104/gateway/uplink"    # ESP32  → Python
+TOPIC_DL      = "mot_mqtt_194104/gateway/downlink"  # Python → ESP32
+TOPIC_UL      = "mot_mqtt_194104/gateway/uplink"    # ESP32  → Python
 
 # QoS usado nos dois sentidos (DL e UL). QoS1 = "at least once": o broker
 # confirma (PUBACK) e há retransmissão se a confirmação não chegar.
