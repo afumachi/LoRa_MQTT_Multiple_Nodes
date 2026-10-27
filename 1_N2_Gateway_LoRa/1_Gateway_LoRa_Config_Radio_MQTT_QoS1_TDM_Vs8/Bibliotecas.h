@@ -17,7 +17,7 @@
 // 2 - Mapeamento dos Pinos
 //=======================================================================
 
-#if defined(PKLORA_ESP32) || defined(AFLORA_ESP32)
+#if defined(PKLORA_ESP32)
   #include <WiFi.h>
   #include <WiFiMulti.h>
 
@@ -73,21 +73,6 @@ byte PacoteUL[TAMANHO_PACOTE_UL];
   #define LED_VERMELHO_PIN  15    // PINO 15
   #define LED_VERDE_PIN     4    // PINO 4
   
-#elif defined(AFLORA_ESP32)
-
-  // ============= Pinagem na placa da PK-LoRa da ligação do RFM95 com o ESP32
-  #define SCK_PIN   18
-  #define MISO_PIN  19
-  #define MOSI_PIN  23
-  #define NSS_PIN   5
-  #define RST_PIN   14
-  #define DIO0_PIN  26
-  #define DIO1_PIN  35
-  #define DIO2_PIN  34
-
-  // Pinos dos LEDs
-  #define LED_VERMELHO_PIN  15    // PINO 15
-  #define LED_VERDE_PIN     4    // PINO 4
 
 #elif defined(PKLORA_NODEMCU)
   // ============= Pinagem na placa da PK-LoRa da ligação do RFM95 com o Node-MCU
@@ -103,7 +88,7 @@ byte PacoteUL[TAMANHO_PACOTE_UL];
   #define LED_VERDE_PIN     4    // PINO D2
 
 #else
-  #error "Por favor, definir a placa de hardware  (PKLORA_ESP32 ou AAF_LORA) no topo deste código!"
+  #error "Por favor, definir a placa de hardware  (PKLORA_ESP32 ou PKLORA_NODEMCU) no topo deste código!"
 #endif
 
 // Váriáveis utilizadas no código

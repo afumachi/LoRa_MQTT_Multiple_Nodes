@@ -12,7 +12,6 @@
 // Remova o comentário da linha referente ao módulo que você está utilizando e comente a outro
 
 #define PKLORA_ESP32 // HARDWARE COM ESP32
-//#define AFLORA_ESP32 // HARDWARE COM ESP32
 //#define PKLORA_NODEMCU // HARDWARE COM ESP12E - NODEMCU
 
 // Caso tenha sensor GPS integrado ao Módulo
@@ -127,7 +126,7 @@ void setup() {
   pinMode(LED_VERMELHO_PIN, OUTPUT);
   pinMode(LED_VERDE_PIN, OUTPUT);
   
-  #if defined(PKLORA_ESP32) || defined(AFLORA_ESP32)
+  #if defined(PKLORA_ESP32)
     pinMode(BOTAO_PIN, INPUT); 
     pinMode(LED_AMARELO_PIN, OUTPUT);
     // Configuração ADC para o LDR
@@ -141,7 +140,7 @@ void setup() {
   digitalWrite(LED_VERMELHO_PIN, LOW);
   digitalWrite(LED_VERDE_PIN, LOW);
 
-  #if defined(PKLORA_ESP32) || defined(AFLORA_ESP32)
+  #if defined(PKLORA_ESP32)
     digitalWrite(LED_AMARELO_PIN, LOW);
 
   #endif
