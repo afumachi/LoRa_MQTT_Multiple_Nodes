@@ -2,6 +2,8 @@
 import serial
 import math
 import time
+import os
+from serial.tools import list_ports  # Importa a ferramenta de escaneamento
 import threading
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
@@ -118,6 +120,71 @@ def calcular_toa_por_lut(lut_index):
     toa_s = ((tempo_preambulo + (n_payload_simbolo * tempo_simbolo)) * 1000) / 1000.0
     return toa_s
 
+# código para Linux Rasp
+
+import serial
+import time
+from serial.tools import list_ports  # Importa a ferramenta de escaneamento
+
+# ========================== 5 - Configuração da Porta Serial ==========================
+print("\n========== Configuração da Porta Serial Automática ==========")
+
+porta_com = None
+
+# 1. Escanear portas seriais ativas no sistema
+portas_disponiveis = list(list_ports.comports())
+
+# 2. Filtrar apenas portas que possuem características de placas USB (NodeMCU/ESP32 geralmente usam chips CH340, CP210x, etc.)
+# No Linux elas aparecem como /dev/ttyUSBx ou /dev/ttyACMx
+portas_validas = [p.device for p in portas_disponiveis if "ttyUSB" in p.device or "ttyACM" in p.device]
+
+if len(portas_validas) == 1:
+    # Cenário Ideal: Apenas o seu ESP32/NodeMCU está conectado
+    porta_com = portas_validas[0]
+    print(f"[Auto-Detect] Uma única placa foi encontrada: {porta_com}")
+    
+elif len(portas_validas) > 1:
+    # Cenário de conflito: Mais de um dispositivo USB-Serial conectado
+    print("[Aviso] Mais de um dispositivo USB-Serial foi detectado:")
+    for i, p in enumerate(portas_validas):
+        print(f" [{i}] -> {p}")
+    idx = input("Digite o número correspondente à porta do ESP32: ").strip()
+    try:
+        porta_com = portas_validas[int(idx)]
+    except:
+        print("[Erro] Seleção inválida. Encerrando.")
+        exit(1)
+else:
+    # Nenhuma placa USB detectada automaticamente (Pode estar desconectada ou sem driver)
+    print("[Aviso] Nenhuma placa USB-Serial foi detectada automaticamente.")
+    n_serial_input = input("Por favor, digite o nome da porta manualmente (ex: ttyUSB0): ").strip()
+    porta_com = n_serial_input if n_serial_input.startswith("/dev/") else "/dev/" + n_serial_input
+
+# 3. Conexão com a porta definida
+try:
+    ser = serial.Serial(porta_com, 115200, timeout=0.2, parity=serial.PARITY_NONE)
+    
+    # Controle de DTR/RTS para resetar a placa corretamente ao iniciar
+    ser.dtr = False
+    ser.rts = False
+    time.sleep(0.1)
+    ser.dtr = True
+    ser.rts = True
+    time.sleep(1.5)
+    
+    ser.reset_input_buffer()
+    ser.reset_output_buffer()
+    print(f"[Serial] Conectado com sucesso à porta {porta_com}")
+except Exception as e:
+    print(f"[Erro] Falha ao abrir a porta serial {porta_com}: {e}")
+    print("[Dica] Verifique se seu usuário tem permissão (sudo usermod -aG dialout $USER)")
+    client.loop_stop()
+    client.disconnect()
+    exit(1)
+
+
+'''
+# código para windowns
 # ========================== 5 - Configuração da Porta Serial ==========================
 print("\n========== Configuração da Porta Serial ==========")
 n_serial_input = input("Digite o número da porta COM em que o gateway LoRa está conectado (ex: 3 para COM3): ").strip()
@@ -139,6 +206,7 @@ except Exception as e:
     client.loop_stop()
     client.disconnect()
     exit(1)
+'''
 
 # ========================== 6 - Loop Principal ==========================
 print("\n========== Gateway MQTT + Borda Serial Iniciado (Modo Contínuo) ==========")
