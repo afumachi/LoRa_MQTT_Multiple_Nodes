@@ -717,7 +717,7 @@ try:
 
                     downlink()
                                           
-                    time.sleep(toa_entre_medidas/1.5)
+                    time.sleep(toa_entre_medidas + 0.5)
                     pacote_recebido = 0
 
                     uplink()
