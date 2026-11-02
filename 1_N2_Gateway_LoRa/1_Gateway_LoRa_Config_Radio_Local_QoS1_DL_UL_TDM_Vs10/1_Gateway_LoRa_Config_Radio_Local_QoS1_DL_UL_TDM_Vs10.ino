@@ -36,6 +36,8 @@
 // Habilita ou disabilita o uso CRC, por padrão o CRC não é usado.
 //#define loraCRC
 
+bool lss_mode = 0;
+bool uplink_mode = 0;
 
 //=======================================================================
 // 6 - Setup de inicialização 

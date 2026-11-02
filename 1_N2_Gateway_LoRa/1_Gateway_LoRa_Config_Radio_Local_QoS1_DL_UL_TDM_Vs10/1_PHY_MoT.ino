@@ -61,6 +61,7 @@ void Phy_serial_receive_DL() {
     valor_novo_codingrate      = config_atual.cr;
 
     //valor_novo_potencia_radio = 2;//PacoteDL[3];     // Byte DL[3] valor de rádio LoRa de Potência de Rádio LoRa
+    lss_mode = int(PacoteDL[4]);
     tempo_radio = PacoteDL[6];                   // Byte DL[6] Recebe tempo de radio tx rx
     recebe_comando_nova_radio = PacoteDL[7];     // Byte DL[7] Recebe comando de reconfiguração de Rádio LoRa
 
@@ -85,9 +86,18 @@ void Phy_serial_receive_DL() {
         // Último pacote do LoRa Site Survey
         confirma_novo_radio_base = 5;
       }
-      else if (recebe_comando_nova_radio == 6){
+
+      if (lss_mode == 1){
         // LSS UL Only
         confirma_novo_radio_base = 6;
+        
+        LoRa.sleep();
+        LoRa.setSpreadingFactor(valor_novo_spreadingfactor);
+        LoRa.setSignalBandwidth(valor_novo_bandwidth);
+        LoRa.setCodingRate4(valor_novo_codingrate);
+        LoRa.idle();  // Retorna ao modo standby/recepção
+
+        Phy_radio_receive_UL();
       }
 
       Phy_radio_send_DL();  // chama a funcao de recepcao da camada de controle de acesso ao meio
