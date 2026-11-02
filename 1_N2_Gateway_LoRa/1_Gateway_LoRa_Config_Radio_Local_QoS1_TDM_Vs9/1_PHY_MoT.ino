@@ -70,20 +70,24 @@ void Phy_serial_receive_DL() {
   // Controla Estado do Teste LSS - analisa Byte Pacote_DL[7]
   if (recebe_comando_nova_radio != 10){
     if ((recebe_comando_nova_radio == 1) ){
-      // Nova configuração de Rádio
+      // Radio Reconfig
       confirma_novo_radio_base = 2;
     }
     else if (recebe_comando_nova_radio == 3){
-        // Teste de Enlace
+        // Link Test
         confirma_novo_radio_base = 3;
       }
       else if (recebe_comando_nova_radio == 4){
-        // LSS em Andamento
+        // LSS DL-UL em Andamento
         confirma_novo_radio_base = 4;
       }
       else if (recebe_comando_nova_radio == 5){
-        // Último pacote do LoRa Site Survey
+        // LSS UL Only em Andamento
         confirma_novo_radio_base = 5;
+      }
+      else if (recebe_comando_nova_radio == 6){
+        // Último pacote do LoRa Site Survey
+        confirma_novo_radio_base = 6;
       }
 
       Phy_radio_send_DL();  // chama a funcao de recepcao da camada de controle de acesso ao meio
@@ -241,15 +245,25 @@ void Phy_serial_send_UL() {
         
   }
   else if ((confirma_novo_radio_base == 3) & (confirma_novo_radio_sensor == 3)){
-    // Confirmação do terceiro ciclo de ambos devices já com Nova Configuração de Rádio
+    // Link Test
     PacoteUL[7] = 4;
     confirma_novo_radio = 0;    
   }
   else if ((confirma_novo_radio_base == 4) & (confirma_novo_radio_sensor == 4)){
-    // Confirmação do terceiro ciclo de ambos devices já com Nova Configuração de Rádio
+    // LSS DL-UL
     PacoteUL[7] = 6;
     confirma_novo_radio = 0;    
   }  
+  else if ((confirma_novo_radio_base == 5) & (confirma_novo_radio_sensor == 5)){
+    // LSS UL Only
+    PacoteUL[7] = 7;
+    confirma_novo_radio = 0;    
+  }
+  else if ((confirma_novo_radio_base == 6) & (confirma_novo_radio_sensor == 6)){
+    // LSS Last Pack
+    PacoteUL[7] = 8;
+    confirma_novo_radio = 0;    
+  }
   else if ((confirma_novo_radio_base == 1) & (confirma_novo_radio_sensor == 0)){
     // Indica ao Nível 3 que apenas um dos Devices LoRa (Base) recebeu/processou o Comando de alteração
     PacoteUL[7] = 1;
@@ -258,15 +272,6 @@ void Phy_serial_send_UL() {
   else if ((confirma_novo_radio_base == 0) & (confirma_novo_radio_sensor == 1)){
     // Indica ao Nível 3 que apenas um dos Devices LoRa (Nó Sensor) recebeu/processou o Comando de alteração
     PacoteUL[7] = 1;
-    confirma_novo_radio = 0;    
-  }
-  else if (confirma_novo_radio_base == 5){
-    PacoteUL[7] = 5;
-    confirma_novo_radio = 5;
-  }
-  else {
-    // Sem necessidade de alteração de Rádio
-    PacoteUL[7] = 0;
     confirma_novo_radio = 0;    
   }
 
