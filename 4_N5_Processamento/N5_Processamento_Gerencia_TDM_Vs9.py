@@ -250,7 +250,7 @@ while True:
             dados_dev[dev_id]["taxa_calculada"].append(TAXA_CALCULADA)
 
 
-# Gravação dos arquivos .tmp específicos para cada End Device
+        # Gravação dos arquivos .tmp específicos para cada End Device
         for dev_id, info in dados_dev.items():
             if info["total_pacotes"] == 0:
                 continue
@@ -325,7 +325,7 @@ while True:
                 diff_snr_down.append(info["snr_down"][idx] - m_s_dl if m_s_dl is not None else None)
                 diff_snr_up.append(info["snr_up"][idx] - m_s_up if m_s_up is not None else None)
 
-            # Grava no _rssi.tmp com as 20 colunas correspondentes[cite: 5]
+            # Grava no _rssi.tmp com as 20 colunas correspondentes
             with open(arquivo_rssi, "w") as f_rssi:
                 for idx in range(len(info["rssi_down"])):
                     def fmt(val):
@@ -366,14 +366,8 @@ while True:
                       min_s_down, max_s_down, min_s_up, max_s_up,
                       info["pacotes_perdidos"], file=f_stats)
                 
-            '''
-            with open(arquivo_stats, "w") as f_stats:
-                print(min(info["rssi_down"]), max(info["rssi_down"]), min(info["rssi_up"]), max(info["rssi_up"]),
-                      min(info["snr_down"]), max(info["snr_down"]), min(info["snr_up"]), max(info["snr_up"]),
-                      info["pacotes_perdidos"], file=f_stats)
-            '''
             
-            # Impressão dinâmica em tela dos cálculos executados por End Device[cite: 5]
+            # Impressão dinâmica em tela dos cálculos executados por End Device
             ult_mm_r_dl = mm_rssi_down[-1] if mm_rssi_down and mm_rssi_down[-1] is not None else 0.0
             ult_mm_r_up = mm_rssi_up[-1] if mm_rssi_up and mm_rssi_up[-1] is not None else 0.0
             ult_std_r_dl = std_rssi_down[-1] if std_rssi_down and std_rssi_down[-1] is not None else 0.0

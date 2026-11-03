@@ -380,7 +380,7 @@ def downlink():
    
    pw_csv = 20
 
-   # Leitura das configurações e do endereço do nó sensor a partir do CSV[cite: 8]
+   # Leitura das configurações e do endereço do nó sensor a partir do CSV
    if os.path.exists(caminho_csv_end_devices):
        try:
            df_devices = pd.read_csv(caminho_csv_end_devices)
@@ -394,7 +394,7 @@ def downlink():
                linha_dispositivo_atual = indice_dispositivo_atual
                dispositivo = df_devices.iloc[indice_dispositivo_atual]
 
-               # Obtém o endereço de rede do sensor[cite: 8]
+               # Obtém o endereço de rede do sensor
                endereco_hex_ou_str = str(dispositivo['endereco_rede']).strip()
                if endereco_hex_ou_str.startswith("0x") or endereco_hex_ou_str.startswith("0X"):
                    ID_sensor = int(endereco_hex_ou_str, 16)
@@ -427,7 +427,7 @@ def downlink():
    else:
        print(f"[AVISO] Arquivo {caminho_csv_end_devices} não encontrado. Mantendo valores padrões.")
 
-   # Limpa o pacote para garantir que não tem lixo[cite: 8]
+   # Limpa o pacote para garantir que não tem lixo
    for i in range(TAMANHO_PACOTE_DL):
        Pacote_DL[i] = 0
 
@@ -469,7 +469,7 @@ def downlink():
    Pacote_DL[8] = ID_sensor & 0xFF  
    Pacote_DL[10] = ID_gateway
 
-   # Camada de Transporte[cite: 8]
+   # Camada de Transporte
    Pacote_DL[12] = int(medida_atual / 256)
    Pacote_DL[13] = int(medida_atual % 256)
    Pacote_DL[14] = int(quantidade_de_medidas / 256)  # MSB
@@ -479,7 +479,7 @@ def downlink():
    Comando_LED_amarelo = ler_cmd_led_amarelo()
    Pacote_DL[16] = Comando_LED_amarelo
 
-   # Atualiza arquivo de comando de estado do LoRa[cite: 8]
+   # Atualiza arquivo de comando de estado do LoRa
    with open(caminho_cmd_lora, 'r') as f:
        linhas = f.readlines()
 
@@ -527,7 +527,7 @@ def uplink():
       Pacote_UL = Pacote_UL_payload          
       if len(Pacote_UL) == TAMANHO_PACOTE_UL:   
          print('Pacote = ', medida_atual, ' | Pacote UL recebido')
-         # Camada MAC[cite: 8]
+         # Camada MAC
          confirma_mudar_radio = Pacote_UL[7]
 
          with open(caminho_cmd_lora, 'r') as f:
@@ -554,7 +554,7 @@ def uplink():
                          df_devices.loc[linha_dispositivo_atual, 'coding_rate'] = df_devices.loc[linha_dispositivo_atual, 'coding_rate_new']
                          df_devices.loc[linha_dispositivo_atual, 'potencia_tx'] = df_devices.loc[linha_dispositivo_atual, 'potencia_tx_new']
                          print(f"[LSS] Rádio do Nó 0x{int(df_devices.loc[linha_dispositivo_atual, 'endereco_rede']):02X} reconfigurado com sucesso no CSV!")
-                         time.sleep(3)
+                         time.sleep(1)
                          
                      df_devices.to_csv(caminho_csv_end_devices, index=False)
              except Exception as e:
