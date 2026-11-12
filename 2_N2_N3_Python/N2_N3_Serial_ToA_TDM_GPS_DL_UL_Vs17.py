@@ -30,9 +30,9 @@ global psrDL_geral, contador_perda_DL, ID_gateway, ID_sensor, Pacote_DL, pacote_
 global estado_lss, toa_entre_medidas, indice_dispositivo_atual, quantidade_de_medidas
 global sf_csv, bw_csv, cr_csv, pw_csv, sf_csv_new, bw_csv_new, cr_csv_new
 global comando, medidas, tempo, arquivo_log_dados, num_medidas
-global Contador_pkt_DL, num_medidas_total, tempo_entre_pacotes
-global Pacote_UL, primeiro_pacote_recebido, total_end_devices, ultimo_pacote
-global Comando_LED_amarelo, St_LED_amarelo, Tempo_inicial_RX, Tempo_limite_RX
+global Contador_pkt_DL, num_medidas_total, tempo_entre_pacotes, valor_tempo
+global Pacote_UL, primeiro_pacote_recebido, total_end_devices, ultimo_pacote, Tempo_gasto
+global Comando_LED_amarelo, St_LED_amarelo, Tempo_inicial_RX, Tempo_limite_RX, time_out
 
 
 
@@ -66,12 +66,13 @@ condicao_start = 0
 arquivo_log_dados = 0
 
 # ================ Camada MAC
-tempo_entre_pacotes = 2.0
+tempo_entre_pacotes = 0.2
 pacote_recebido = 0
 primeiro_pacote_recebido = 0
 Tempo_inicial_RX = 0
 Tempo_limite_RX = 0
-
+time_out = 5
+Tempo_gasto = 0
 # ================ Camada Transporte
 Contador_pkt_DL = 0
 num_medidas_total = 0
@@ -87,9 +88,9 @@ cr_csv_new = 8
 pw_csv = 20
 
 # Camada MAC
-valor_tempo = 8
-tempo_entre_medidas = 8 # original = 1 # alterado para 8 pior caso SF12/BW125k/CR8/pw20
-toa_entre_medidas = 8
+valor_tempo = 5
+tempo_entre_medidas = 5
+toa_entre_medidas = 5
 
 # Adição variáveis de controle do ciclo de modif. configuração rádio LoRa
 inicia_lora_site_survey = 0
@@ -191,7 +192,7 @@ def ler_parametros_arquivo():
 
 def calculo_toa_radio_lora(n_preambulo=8, header_impl=False, crc_on=True, low_dr_opt=None):
     global toa_entre_medidas, valor_atual_bandwidth, valor_atual_spreadingfactor, valor_atual_codingrate, TAMANHO_PACOTE_UL
-    global sf_csv, bw_csv, cr_csv
+    global sf_csv, bw_csv, cr_csv, valor_tempo
 
     valor_atual_spreadingfactor = sf_csv
     valor_atual_bandwidth = bw_csv
@@ -235,14 +236,14 @@ def calculo_toa_radio_lora(n_preambulo=8, header_impl=False, crc_on=True, low_dr
     # bitrate = (SF*((BW*1000)/(2^SF))*(4/(4+CR)))/1000
     bitrate = (valor_atual_spreadingfactor*((BANDWIDTH_Hz)/(2**valor_atual_spreadingfactor))*(4/(4+valor_CR)))
 
-    print("### Time On Air (ToA [ms]): ", ToA_ms)
     # calcula valor do tempo da comunicação MQTT + entre o Envio do Pacote via LoRa de Downlink + Uplink + Tempo Processamento ESP32 + MQTT
     valor_tempo = ((2*ToA_ms))/1000 #
     toa_entre_medidas = max(math.ceil(valor_tempo), 0) #arredonda em segundos o tempo entre medidas
-    print("### Valor Tempo Entre Medidas: ", toa_entre_medidas)
+    # Imprime tempos para Debug
+    #print("### Time On Air (ToA [ms]): ", ToA_ms)
+    #print('### Valor Tempo Entre Medidas: ', toa_entre_medidas, 'Calculado' , valor_tempo)
+    return toa_entre_medidas
 
-
-    return toa_entre_medidas #round(tempo_entre_medidas, 2) #, round(bitrate, 2)
 
 # =============================================================================
 # TABELA LUT DE 72 COMBINAÇÕES INDEXADAS (EQUIVALENTE AO FIRMWARE DO ESP32)
@@ -286,10 +287,10 @@ linha_dispositivo_atual = 0
 def downlink():
    global rssi_DL, rssi_UL, contador_UL, contador_DL, ultimo_pacote_DL, ultimo_pacote_UL
    global comanda_mudar_radio, estado_lss, total_end_devices, ultimo_pacote
-   global indice_dispositivo_atual, quantidade_de_medidas
+   global indice_dispositivo_atual, quantidade_de_medidas, time_out
    global sf_csv, bw_csv, cr_csv, pw_csv, linha_dispositivo_atual
    global sf_csv_new, bw_csv_new, cr_csv_new
-   global Contador_pkt_DL, num_medidas_total, tempo_entre_pacotes, primeiro_pacote_recebido
+   global Contador_pkt_DL, num_medidas_total, primeiro_pacote_recebido
    global ID_sensor, ID_gateway, Pacote_DL, Pacote_UL, medida_atual, num_medidas
    
    sf_csv = 12
@@ -382,7 +383,7 @@ def downlink():
        # Camada MAC
        Pacote_DL[4] = ultimo_pacote
        Pacote_DL[5] = 0
-       Pacote_DL[6] = 10 * toa_entre_medidas # multiplica por 10 para eliminar uma casa decimal
+       Pacote_DL[6] = int(10 * time_out) # multiplica por 10 para eliminar uma casa decimal
        Pacote_DL[7] = comanda_mudar_radio
        estado_lss = comanda_mudar_radio
        #print("### DOWNLINK ### MÁQUINA ESTADO LORA: ", comanda_mudar_radio)
@@ -491,10 +492,10 @@ while config is None:
    if config is None:
       time.sleep(1)
 
-_, num_medidas_total, Tempo_entre_pacotes, n_serial = config
+_, num_medidas_total, tempo_entre_pacotes, n_serial = config
 n_serial1 = int(n_serial) - 1
 
-print(f"[Config] Porta COM: {n_serial} | Tempo entre pacotes: {Tempo_entre_pacotes}s | Medidas: {num_medidas_total}")
+print(f"[Config] Porta COM: {n_serial} | Tempo entre pacotes: {tempo_entre_pacotes}s | Medidas: {num_medidas_total}")
 
 ser = serial.Serial("COM"+str(n_serial), 115200, timeout=0.5, parity=serial.PARITY_NONE)
 
@@ -529,7 +530,7 @@ try:
 
           config_atual = ler_parametros_arquivo()
           if config_atual:
-              comando, num_medidas_total, Tempo_entre_pacotes, _ = config_atual
+              comando, num_medidas_total, tempo_entre_pacotes, _ = config_atual
           else:
               comando = 0
 
@@ -540,22 +541,44 @@ try:
           if comando == 0:
               if Log_dados and not Log_dados.closed:
                   Log_dados.close()
-                  print(f'[LoRa] Teste PARADO. Arquivo de log fechado.')
+                  print(f'[LSS] Teste FINALIZADO Pelo Operador. Arquivo de log salvo e fechado com sucesso.')
+                  print('Pacotes enviados = ', quantidade_de_medidas, ' Pacotes perdidos da rede = ', perda_PK_RX)
+                  print('Tempo Entre Pacotes = ', Tempo_gasto)
+
+                  # Escreve 0 automaticamente na primeira linha do PARAMETROS_SERIAL.txt para parar o teste
+                  try:
+                     if config_atual:
+                        _, m_v, t_v, s_v = config_atual
+                        with open(caminho_txt_parametros, "w") as pf:
+                           pf.write("0\n")
+                           pf.write(f"{m_v}\n")
+                           pf.write(f"{t_v}\n")
+                           pf.write(f"{s_v}\n")
+                  except Exception as e:
+                      print(f"[Erro] Falha ao atualizar PARAMETROS_SERIAL.txt para 0: {e}")
+                  
               Log_dados = None
+              rodada_concluida = False
+              time.sleep(0.05)
               j = 1
               Contador_pkt_DL = 0
               perda_PK_RX = 0
-              rodada_concluida = False
-              time.sleep(0.5)
               estado_anterior = 0
               primeiro_pacote_recebido = 0
+              quantidade_de_medidas = 0
+              medida_atual = 0
+              ultimo_pacote = 0
+              comanda_mudar_radio = 0 
+              condicao_start = 0
+              num_medidas_total = 0
+              time.sleep(0.2)           
               continue
 
           if comando == 2:
               if estado_anterior != 2 and not rodada_concluida:
                   print('[LoRa] Teste PAUSADO pelo operador.')
                   estado_anterior = 2
-              time.sleep(0.5)
+              time.sleep(0.1)
               continue
 
           if comando == 1 and not rodada_concluida:
@@ -571,7 +594,6 @@ try:
                  print('[LoRa] Teste INICIADO / RETOMADO.')
                  estado_anterior = 1
 
-      
               # AAF 23-09-2026
               if os.path.exists(caminho_csv_end_devices):
                   try:
@@ -587,9 +609,6 @@ try:
                   total_end_devices = 0
 
               quantidade_de_medidas = num_medidas_total * total_end_devices # AAF 23-09-2026
-             
-              tempo_entre_medidas = valor_tempo
-              
               
               if (medida_atual == 0):
                   
@@ -617,8 +636,7 @@ try:
               if (medida_atual < quantidade_de_medidas):
                   
                   LSS_status = 1
-                  tempo_entre_medidas = valor_tempo
-                 
+                                   
                   medida_atual = medida_atual + 1
 
                   if ((medida_atual) > (quantidade_de_medidas - total_end_devices)): # AAF 23-09-2026
@@ -635,7 +653,10 @@ try:
                         # ================ Envio de pacote de DL
                         downlink()
                                               
-                        time.sleep(toa_entre_medidas + 0.2)
+                        time_out = (valor_tempo + tempo_entre_pacotes) #toa_entre_medidas
+                        time.sleep(time_out)
+                        # print('time-out total : ', time_out) # imprime para debug
+
                         pacote_recebido = 0
                         # ================ Recebimento de pacote de UL
                         uplink()
@@ -709,10 +730,9 @@ try:
               else:
                  print('Pacotes enviados = ', quantidade_de_medidas, ' Pacotes perdidos da rede = ', perda_PK_RX)
                  print('Tempo Entre Pacotes = ', Tempo_gasto)
-                 print('Tempo Entre Pacotes = ',Tempo_gasto)
                  if Log_dados and not Log_dados.closed:
                      Log_dados.close()
-                     print('[LoRa] Arquivo de log salvo e fechado com sucesso.')
+                     print('[LSS] Arquivo de log salvo e fechado com sucesso.')
                  Log_dados = None
                  primeiro_pacote_recebido = 0
                  perda_PK_RX = 0
