@@ -149,14 +149,15 @@ uint8_t confirma_novo_radio_base = 10; // AAF 17-09 inicio do Estado_DL == 10
 uint8_t confirma_novo_radio_sensor = 0;
 //int recebe_comando_nova_radio = 0; // # Comando de Downlink de mudança de configuração de rádio LoRa
 
-unsigned int primeiro_setup = 1; // Indica o Startup do Módulo pela primeira vez
+uint8_t primeiro_setup = 1; // Indica o Startup do Módulo pela primeira vez
+uint8_t primeiro_downlink = 0; // Indica o Startup do Módulo pela primeira vez
 
 unsigned long lastPacketMillis = 0; 
 unsigned long lastPacketTime = 0; // Timestamp local do último pacote recebido
 int lostPacketCounter = 0;        // Contador de falhas
 bool communicationLost = false;
 
-unsigned long time_out_lora_dl = 60000UL; // 1 min. time out Pacote_DL
+unsigned long time_out_lora_dl = 6000UL; // 1 min. time out Pacote_DL
 unsigned long millis_mqtt_controle = 0;
 // ============================================================
 // VARIÁVEIS GLOBAIS - adicionar junto às demais declarações

@@ -6,57 +6,52 @@ void Phy_radio_receive_DL() {
     //Serial.println("Primeiro SETUP");
     LoRa.sleep();
 
-    LoRa.setSpreadingFactor(spreadingFactorSetup);
-    LoRa.setSignalBandwidth(signalBandwidthSetup);
-    LoRa.setCodingRate4(codingRateDenominatorSetup);
+    LoRa.setSpreadingFactor(spreadingFactor);
+    LoRa.setSignalBandwidth(signalBandwidth);
+    LoRa.setCodingRate4(codingRateDenominator);
     LoRa.setTxPower(txPower);
 
     LoRa.idle(); // Retorna ao modo standby-recepção
 
     primeiro_setup = 0;
+    primeiro_downlink = 0;
     confirma_novo_radio_sensor = 0;
-    confirma_novo_radio_base = 10; // stand-by
     confirma_novo_radio = 0;
     recebe_comando_nova_radio = 0;
     contador_perda_DL = 0;
-    uplink_mode = 0;
-    lss_mode = 0;
     contadorUL = 0;
+    contadorDL = 0;
     medidasLSS = 0;
     Serial.println("SETUP INICIAL - Sensor LoRa");
 
   }
 
-  // Neste ponto zeramos o pacote de DL para garantir que ele não está carregando nenhuma informação de comunicação anterior.
-  for (int i = 0; i < TAMANHO_PACOTE_DL; i++) {
-    PacoteDL[i] = 0;    
-  }
-  
   // Escuta o Rádio LoRa se identificou algum preâmbulo de Pacote
   uint8_t packetSize = LoRa.parsePacket();
 
   // Caso positivo, identifica o tamanho do Payload do Pacote
   if (packetSize) {
-    
-    digitalWrite(LED_VERDE_PIN, HIGH); // Liga Led Verde Indicando Inicio da leitura do Pacote
-    
-    //Serial.println("Pacote DL IDENTIFICADO");
+  
     // Realiza a leitura caso Payload do Pacote seja compatível com o Pacote de 6 Bytes
-    if (packetSize >= TAMANHO_PACOTE_DL) {
-
+    if ((packetSize >= TAMANHO_PACOTE_DL) & (packetSize < TAMANHO_PACOTE_UL)){
+    
+      digitalWrite(LED_VERDE_PIN, HIGH); // Liga Led Verde Indicando Inicio da leitura do Pacote
+  
       millis_standby_controle = millis();
 
       for (int i = 0; i < TAMANHO_PACOTE_DL; i++) {
         PacoteDL[i] = LoRa.read();  // Aloca no Pacote de DL os 6 bytes que vieram do RFM95
       }
 
+      Serial.println("Pacote DL IDENTIFICADO");
+      
       RSSI_dBm_DL = LoRa.packetRssi();
       SNR_DL_bruto = LoRa.packetSnr();
 
       // ADICIONADO Variáveis de recebimento do valores de rádio LoRa
 
       // NOVO: Recebe índice de configuração (0-71) em PacoteDL[0]
-      radio_config_index = PacoteDL[1];
+      radio_config_index = int(PacoteDL[1]);
 
       // Valida índice
       if (radio_config_index <= 71) {
@@ -201,8 +196,6 @@ void Phy_radio_send_UL() {
     medidasLSS = 0;
     contadorUL = 0;
     contador_perda_DL = 0;
-    uplink_mode = 0;
-    lss_mode = 0;
     primeiro_setup = 1;
   }
 

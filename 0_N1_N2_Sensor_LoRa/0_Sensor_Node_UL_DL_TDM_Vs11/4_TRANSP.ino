@@ -4,8 +4,7 @@ void Transp_radio_receive_DL() {
   medidasLSS = (((int(PacoteDL[14]))*256) + (PacoteDL[15]));
   Serial.print("medidasLSS : ");
   Serial.println(medidasLSS);
-  contador_perda_DL = contador_perda_DL + 1;
-  
+  contadorDL = contadorDL + 1;
   App_radio_receive_DL();
 
 }
@@ -27,8 +26,6 @@ void Transp_radio_send_UL() {
   PacoteUL[UL_COUNTER_LSB] = contadorUL%256; // = contadorUL & 0xFF;
 
     if (contadorUL > medidasLSS){ // era >= aaf 09/11
-      uplink_mode = 0;
-      lss_mode = 0;
       contadorUL = 0;
       medidasLSS = 0;
       confirma_novo_radio_sensor = 5;

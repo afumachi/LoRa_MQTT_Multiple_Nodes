@@ -62,8 +62,8 @@ byte PacoteUL[TAMANHO_PACOTE_UL];
   #define DIO0_PIN  5     // PIN D1
 
   // Pinos dos LEDs
-  #define LED_VERMELHO_PIN  2    // PINO D4
-  #define LED_VERDE_PIN     4    // PINO D2
+  #define LED_VERMELHO_PIN  4    // PINO D4
+  #define LED_VERDE_PIN     2    // PINO D2
 
 #else
   #error "Por favor, definir a placa de hardware  (PKLORA_ESP32 ou PKLORA_NODEMCU) no topo deste código!"
@@ -77,8 +77,6 @@ uint16_t contadorDL = 0;
 uint16_t contador_medidas_total = 0; 
 uint16_t contador_medidas = 0;
 uint16_t    contadorSS = 0;
-int LQI_UL;
-int tipo, saltos, saltosTotal, dataInitAddress; // Variáveis utilizadas para o roteamento
 
 float RSSI_dBm_UL;    // Variável com a potência rádio recebida (RSSI) em dBm
 int RSSI_UL;          // Variável de mapeamento da RSSI em um valor de 0 a 255 para colocar no pacote

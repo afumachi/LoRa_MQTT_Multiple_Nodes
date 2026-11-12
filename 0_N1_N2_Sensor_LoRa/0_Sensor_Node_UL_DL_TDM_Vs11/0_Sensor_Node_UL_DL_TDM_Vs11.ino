@@ -2,7 +2,7 @@
   MoT LoRa Site Survey Versão Configura Rádio | WissTek IoT
   Última versão: Branquinho / Rodolfo / Anderson
   Hardware: PKLoRa ESP32 ou PKLoRa NodeMCU
-  Nó Sensor - GPS
+  Nó Sensor - 
 */
 
 //=======================================================================
@@ -20,7 +20,6 @@
 
 // Caso tenha Display OLED integrado ao Módulo
 //#define OLED_INTEGRADO
-
 
 //=======================================================================
 // 2 - Biblioteca - chama o arquivo Biblioteca.h
@@ -40,39 +39,52 @@
 #define signalBandwidth       125E3    // signal bandwidth in Hz
 #define codingRateDenominator 8        // denominator of the coding rate
 
-
-// ============== CAMADA MAC
-
-#define TAMANHO_PACOTE_DL 20
-#define TAMANHO_PACOTE_UL 30
-
-byte PacoteDL[TAMANHO_PACOTE_DL];
-byte PacoteUL[TAMANHO_PACOTE_UL];
-
 // Habilita ou disabilita o uso CRC, por padrão o CRC não é usado.
 //#define loraCRC
 
-// Váriáveis utilizadas no código
-int RSSI_dBm_DL; // Variável com a potência rádio recebida (RSSI) em dBm
-int RSSI_DL;     // Variável de mapeamento da RSSI em um valor de 0 a 255 para colocar no pacote
-
-float SNR_DL_bruto;   // Variável com a relação sinal ruído
-uint8_t SNR_DL;           // Variável inteira para enviar a SNR, que será convertida para a SNR original no Python
-
 // ============= CAMADA DE REDE
 // Identificação do sensor e tamanho de pacote
-int ID_sensor = 1; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
-int ID_gateway = 0;    // Variável com o ID_gateway que estará no pacote de DL byte 10
+byte ID_sensor = 0x03; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
+byte ID_gateway = 0x00;    // Variável com o ID_gateway que estará no pacote de DL byte 10
 
 // ============== CAMADA DE TRANSPORTE
 int contador_pkt_DL = 0; // Variável para o contador de pacotes de DL
 int contador_pkt_UL = 0; // Variável para o contador de pacotes de UL
 uint16_t contadorUL = 0;
 uint16_t contadorDL = 0;
-uint16_t contadorSS = 0;
+uint16_t medidasLSS = 0;
 
+// ============= CAMADA DE APLICAÇÃO
 int luminosidade; // Variável que vai receber o valor da luminosidade entre 0 e 4095 - ADC 12 bits
 uint8_t feedback_led_amarelo = 0;
+
+// ============= CAMADA DE FÍSICA
+int RSSI_dBm_DL; // Variável com a potência rádio recebida (RSSI) em dBm
+int RSSI_DL;     // Variável de mapeamento da RSSI em um valor de 0 a 255 para colocar no pacote
+
+float SNR_DL_bruto;   // Variável com a relação sinal ruído
+uint8_t SNR_DL;           // Variável inteira para enviar a SNR, que será convertida para a SNR original no Python
+
+// ============== CAMADA MAC
+
+#define TAMANHO_PACOTE_DL 20
+
+#if defined(GPS_INTEGRADO)
+  #define TAMANHO_PACOTE_UL 30
+#elif defined(SEM_GPS)
+  #define TAMANHO_PACOTE_UL 20
+#endif
+
+byte PacoteDL[TAMANHO_PACOTE_DL];
+byte PacoteUL[TAMANHO_PACOTE_UL];
+
+unsigned long tempo_radio = 200UL;  
+
+// Variável global para armazenar o tempo da última execução DL
+unsigned long ultimoTempo = 0; 
+
+// Intervalo de tempo entre UL em milissegundos
+unsigned long intervalo = 2000UL; // Tempo recebido em DL[6] (em ms ou unidade definida pelo protocolo)
 
 //=======================================================================
 // 4 - Setup de inicialização
@@ -81,7 +93,7 @@ uint8_t feedback_led_amarelo = 0;
 void setup() {
 
   Serial.begin(115200);
-  delay(200);
+  delay(20);
   Serial.println("--- Iniciando Nó Sensor LoRa ---");
 
   // --- Inicialização de I/O ---
@@ -104,15 +116,13 @@ void setup() {
 
   #if defined(PKLORA_ESP32)
     digitalWrite(LED_AMARELO_PIN, LOW);
-
   #endif
-
 
   #if defined(GPS_INTEGRADO)
     // GPS Serial: Baud 9600, Pins: RX=16, TX=17
     SerialGPS.begin(9600, SERIAL_8N1, 16, 17);
-
   #endif
+
   #if defined(OLED_INTEGRADO)
     // Initialize I2C with your specific pins (SDA = 21, SCL = 22)
     Wire.begin(21, 22);
@@ -127,9 +137,7 @@ void setup() {
     display.clearDisplay();
     display.setTextColor(SSD1306_WHITE);
     delay(100);
-
   #endif
-
 
     // --- Inicialização Módulo RF95 (LoRa) ---
   #if defined(PKLORA_ESP32)
@@ -143,22 +151,13 @@ void setup() {
   if (!LoRa.begin(FREQUENCY_IN_HZ)) {
     Serial.println("Erro ao iniciar módulo RFM95");
   }
-
-// CONFIGURAÇÕES DE RÁDIO LORA NA CAMADA FÍSICA - 1_PHY.ino
-/*
-  LoRa.setTxPower(txPower);
-  LoRa.setSpreadingFactor(spreadingFactor);
-  LoRa.setSignalBandwidth(signalBandwidth);
-  LoRa.setCodingRate4(codingRateDenominator);
-
-*/
  
   Serial.println("LoRa Inicializado com Sucesso!");
 
   #if defined(OLED_INTEGRADO)
     // Limpa o Display
     display.clearDisplay();
-      
+
     // Escreve o Título Display
     display.setTextSize(1);
     display.setCursor(0, 0);
@@ -177,18 +176,9 @@ void setup() {
     display.display();
   #endif
 
-
   #ifdef loraCRC   // Habilitação do CRC do chip lora  (Configurado em bibliotecas.h)
     LoRa.enableCrc();
   #endif
-
-    // DEBUG: Imprimir slots de NVS
-    radioConfigManager.debugPrintSlots();
-    
-    // DEBUG: Imprimir configuração atual
-    RadioConfig config = radioConfigManager.getConfig();
-    Serial.printf("[DEBUG] Config atual: SF=%d, BW=%ld Hz, CR=4/%d\n",
-                  config.spreadingFactor, config.signalBandwidth, config.codingRateDenominator);
 
   // Pisca o LED Verde para indicar inicialização bem-sucedida
   digitalWrite(LED_VERDE_PIN, HIGH);
@@ -214,30 +204,43 @@ void loop() {
     millis_inicio_controle = millis();
   }
 
-
   unsigned long tempo_standby_ms = 10UL * time_out_lora_dl; // 10 min. sem Pacotes DL sobe para MAX  
 
   if ((millis() - millis_standby_controle >= tempo_standby_ms)) {
     Serial.println("TEMPO SEM RECEBER PACOTES - Time-Out");
     Serial.println("Voltando a Configuração LoRa MDC");
     millis_standby_controle = millis();
-    //reset_para_setup_inicial(); // Timeout atingido → volta ao SETUP
+    primeiro_setup = 1; // Reseta para Long Range
   }     
-
 
   #if defined(GPS_INTEGRADO)
     // Lê os caracteres do GPS a cada 200 [ms]
     unsigned long tempo_sensores_ms = 200UL; // 200 ms
 
     if (millis() - millis_gps_controle >= tempo_sensores_ms) {        
-      updateGPS(); // Atualiza / Lê GPS
-      //Serial.println("FUNÇÃO UPDATE GPS");  
-      // Zera contagem do tempo de controle GPS para tempo de ESP32 rodando
+      updateGPS(); // Atualiza Coordenadas GPS
       millis_gps_controle = millis(); 
     }
   #endif
 
   Phy_radio_receive_DL(); // Função que recebe os pacotes pelo rádio
+
+/*
+  // Função para Contabilização de Pkt DL Pedidos e transmissão Pkt UL 
+  unsigned long tempoAtual = millis(); // estava fora, antes do if aaf 09/11
+
+  if (primeiro_downlink == 1){
+    // Verifica se a diferença entre o tempo atual e a última execução é de 500ms ou mais
+    if (tempoAtual - ultimoTempo >= intervalo) {
+      // Salva o tempo atual como o tempo da última execução
+      ultimoTempo = tempoAtual;
+      contador_perda_DL = contador_perda_DL + 1;
+      Serial.println("Pacote DL Time-Out");
+      // Chama a sua função
+      App_radio_send_UL();
+    }
+  }
+*/
 
 }
 

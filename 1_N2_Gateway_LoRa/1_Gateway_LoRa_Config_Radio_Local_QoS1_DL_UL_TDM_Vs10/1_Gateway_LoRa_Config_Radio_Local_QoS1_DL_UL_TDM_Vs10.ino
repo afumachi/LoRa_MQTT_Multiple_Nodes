@@ -28,16 +28,13 @@
 // ============= CAMADA FÍSICA
 // Parâmetros do LoRa
 #define FREQUENCY_IN_HZ       903E6    // LoRa Frequency
-#define txPower               2       // TX power in dBm, defaults to 17
-#define spreadingFactor       7       // ranges from 6-12,default 7
-#define signalBandwidth       500E3    // signal bandwidth in Hz
-#define codingRateDenominator 5        // denominator of the coding rate
+#define txPower               14       // TX power in dBm, defaults to 17
+#define spreadingFactor       12       // ranges from 6-12,default 7
+#define signalBandwidth       125E3    // signal bandwidth in Hz
+#define codingRateDenominator 8        // denominator of the coding rate
 
 // Habilita ou disabilita o uso CRC, por padrão o CRC não é usado.
 //#define loraCRC
-
-bool lss_mode = 0;
-bool uplink_mode = 0;
 
 //=======================================================================
 // 6 - Setup de inicialização 
@@ -46,7 +43,6 @@ bool uplink_mode = 0;
 // Inicializa as camadas
 void setup() {
   //================= INICIALIZA SERIAL E MÓDULO RF95
-
   Serial.begin(115200);
   // Aguarda para estabilização da Serial
   delay(20);
@@ -72,7 +68,6 @@ void setup() {
     while (true); // Trava se o LoRa falhar
   }
 
-  delay(1000);
   //  --- Atua Led vermelho  --- 
   digitalWrite(LED_VERMELHO_PIN, LOW); // LIGA LED VERMELHO - INDIFERENTE PARA O BOOT
 

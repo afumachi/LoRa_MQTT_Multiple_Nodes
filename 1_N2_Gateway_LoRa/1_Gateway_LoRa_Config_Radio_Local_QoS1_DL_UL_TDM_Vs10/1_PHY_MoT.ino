@@ -33,21 +33,8 @@ void Phy_serial_receive_DL() {
     }
     ID_gateway = PacoteDL[10]; // Identifica que gateway que está enviando o pacote de DL
 
-    // ADICIONADO Variáveis de recebimento do valores de rádio LoRa
-
-    //#if defined(PKLORA_ESP32)
     // Recebe o índice de configuração (0-71) do PacoteDL[0]
     uint8_t radio_config_index = PacoteDL[0];
-
-    // Proteção contra índices fora do limite da tabela (0 a 71)
-    // Valida índice
-    if (radio_config_index <= 71) {
-      // Armazena índice para usar após envio UL
-      //Serial.printf("[PHY MQTT RX] Índice de configuração recebido: %d\n", radio_config_index);
-    } else {
-      //Serial.printf("[PHY MQTT RX] Índice INVÁLIDO recebido: %d (máximo: 71)\n", radio_config_index);
-      radio_config_index = 8;  // Fallback para configuração padrão SHORT Range
-    }
 
     // Estrutura temporária para carregar os dados salvos na memória Flash (PROGMEM)
     RadioConfig config_atual;
@@ -60,8 +47,6 @@ void Phy_serial_receive_DL() {
     valor_novo_bandwidth       = config_atual.bw;
     valor_novo_codingrate      = config_atual.cr;
 
-    //valor_novo_potencia_radio = 2;//PacoteDL[3];     // Byte DL[3] valor de rádio LoRa de Potência de Rádio LoRa
-    lss_mode = int(PacoteDL[4]);
     tempo_radio = PacoteDL[6];                   // Byte DL[6] Recebe tempo de radio tx rx
     recebe_comando_nova_radio = PacoteDL[7];     // Byte DL[7] Recebe comando de reconfiguração de Rádio LoRa
 
@@ -69,7 +54,7 @@ void Phy_serial_receive_DL() {
     contador_medidas = (((PacoteDL[12])*256) + (PacoteDL[13]));     // Número de medidas corrente do teste LSS
 
   // Controla Estado do Teste LSS - analisa Byte Pacote_DL[7]
-  if (recebe_comando_nova_radio != 10){
+  if (recebe_comando_nova_radio != 0){
     if ((recebe_comando_nova_radio == 1) ){
       // Radio Reconfig
       confirma_novo_radio_base = 2;
@@ -86,31 +71,10 @@ void Phy_serial_receive_DL() {
         // Último pacote do LoRa Site Survey
         confirma_novo_radio_base = 5;
       }
-
-      if (lss_mode == 1){
-        // LSS UL Only
-        confirma_novo_radio_base = 6;
-        
-        LoRa.sleep();
-        LoRa.setSpreadingFactor(valor_novo_spreadingfactor);
-        LoRa.setSignalBandwidth(valor_novo_bandwidth);
-        LoRa.setCodingRate4(valor_novo_codingrate);
-        LoRa.idle();  // Retorna ao modo standby/recepção
-
-        Phy_radio_receive_UL();
-      }
-
-      Phy_radio_send_DL();  // chama a funcao de recepcao da camada de controle de acesso ao meio
-
     }
-    else{
-      // se igual a 10
-      // retorna configuração parâmetros rádio Gateway para LMDC
-      //Serial.println("[Reconfiguração parâmetros rádio Gateway para LMDC]");
-      confirma_novo_radio_base = 10;
-      Phy_serial_send_UL();    
     
-    }
+    Phy_radio_send_DL();  // chama a funcao de recepcao da camada de controle de acesso ao meio
+
   }
 }
 
@@ -165,11 +129,9 @@ void Phy_radio_receive_UL() {
       RSSI_dBm_UL = LoRa.packetRssi();
       SNR_UL_bruto = LoRa.packetSnr();
 
-
       // zera controle standby caso recebido Pacote_UL
       millis_standby_controle = millis();
       
-
       //===================================== IMPORTANTE - OPÇÃO VERIFICAÇÃO DE ENDEREÇO OU MODO PROMÍSCUO========================
       // Quando recebe o pacote a base pode verificar o endereço de destino ou trabalhar em modo promíscuo.
       //===================== QUANDO A BASE  VERIFICA O ENDENREÇO DE DESTINO O PACOTE SÓ É ENVIADO PARA A SERIAL CASO A BASE SEJA O DESTINATÁRIO - nesse caso descomentar o bloco abaixo
@@ -274,99 +236,11 @@ void Phy_serial_send_UL() {
     PacoteUL[7] = 7;
     confirma_novo_radio = 0;    
   }
-  else if ((confirma_novo_radio_base == 1) & (confirma_novo_radio_sensor == 0)){
-    // Indica ao Nível 3 que apenas um dos Devices LoRa (Base) recebeu/processou o Comando de alteração
-    PacoteUL[7] = 1;
-    confirma_novo_radio = 0;    
-  }
-  else if ((confirma_novo_radio_base == 0) & (confirma_novo_radio_sensor == 1)){
-    // Indica ao Nível 3 que apenas um dos Devices LoRa (Nó Sensor) recebeu/processou o Comando de alteração
-    PacoteUL[7] = 1;
-    confirma_novo_radio = 0;    
-  }
-
-  if (confirma_novo_radio == 1) {
-    AplicarConfiguracoesRadio();
-  }
-
-  /*
-  if (confirma_novo_radio_base == 10){
-    //RetornaConfiguracoesRadioMAX();
-    //Serial.println("Perda Enlace Nó Sensor - Retorna Configuracoes Radio LBDC");
-    // Para limpar:
-    memset(PacoteUL, 0, sizeof(PacoteUL));
-    PacoteUL[RECEIVER_ID] = 0;
-    PacoteUL[7] = 10;
-    confirma_novo_radio_sensor = 0;
-    confirma_novo_radio_base = 0;
-    confirma_novo_radio = 0;
-    recebe_comando_nova_radio = 0;
-    contadorDL = 0;
-    contadorSS = 0;
-
-    reset_gateway_para_setup_inicial();
-
-  }
-  */
-
 
   // Transmissão do pacote pela serial do ESP32 para o script em Python
   for (int i = 0; i < TAMANHO_PACOTE_UL; i++) {
     Serial.write(PacoteUL[i]);
   }
 
-  /*
-  if (confirma_novo_radio == 5){
-    contadorDL = 0;
-    confirma_novo_radio = 0;
-    //Serial.println("[PHY] CONFIRMA ÚLTIMO PACOTE - RESET RÁDIO");
-    reset_gateway_para_setup_inicial();
-  } 
-
-  */
- 
-
-}
-
-void AplicarConfiguracoesRadio() {
-
-  if (confirma_novo_radio == 1) {
-
-    LoRa.sleep();                                         // Coloca em sleep para garantir a mudança de parâmetros
-    //LoRa.setTxPower(valor_novo_potencia_radio);           // Potência de Transmissão (Configurado em bibliotecas.h)
-    LoRa.setSpreadingFactor(valor_novo_spreadingfactor);  // Fator de Espalhamento  (Configurado em bibliotecas.h)
-    LoRa.setSignalBandwidth(valor_novo_bandwidth);        // Banda do Sinal (Configurado em bibliotecas.h)
-    LoRa.setCodingRate4(valor_novo_codingrate);           // Coding Rate  (Configurado em bibliotecas.h)
-    LoRa.idle();                                       // Retorna ao modo standby/recepção
-
-    confirma_novo_radio_sensor = 0;
-    confirma_novo_radio_base = 0;
-    confirma_novo_radio = 0;
-    recebe_comando_nova_radio = 0;
-    primeiro_setup = 0;
-  }
-}
-
-
-// ============================================================
-// FUNÇÃO AUXILIAR - Reseta estado para aguardar novo downlink serial
-// ============================================================
-
-void reset_gateway_para_setup_inicial() {
-
-  // Zera flags e variáveis de controle
-  aguardando_confirmacao_UL    = false;
-  millis_inicio_aguarda_UL     = 0;
-  tempo_radio                  = 0;
-  recebe_comando_nova_radio    = 0;
-  confirma_novo_radio_sensor   = 0;
-  confirma_novo_radio_base = 0;
-  confirma_novo_radio = 0;
-  contadorDL = 0;
-  contadorSS = 0;
-
-  // Retorna rádio aos parâmetros de SETUP
-  primeiro_setup = 1;
-  PacoteUL[7] = 10; // Gateway Resetou para Máxima
 }
 

@@ -63,8 +63,8 @@ byte PacoteUL[TAMANHO_PACOTE_UL];
   #define DIO0_PIN  5     // PIN D1
 
   // Pinos dos LEDs
-  #define LED_VERMELHO_PIN  2    // PINO D4
-  #define LED_VERDE_PIN     4    // PINO D2
+  #define LED_VERMELHO_PIN  4    // PINO D4
+  #define LED_VERDE_PIN     2    // PINO D2
 
 #else
   #error "Por favor, definir a placa de hardware  (PKLORA_ESP32 ou PKLORA_NODEMCU) no topo deste código!"

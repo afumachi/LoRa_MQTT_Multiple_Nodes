@@ -1,8 +1,10 @@
 // ====== FUNÇÃO RECEBE PACOTE DA CAMADA DE REDE
 void Net_radio_receive_DL() {
-  if(PacoteDL[RECEIVER_ID] == ID_sensor) {  // Só passa para a camada superior se for o destino final do pacote
-    //Serial.println("Pacote DL é para este Nó Sensor");
-
+  Serial.print("PacoteDL[RECEIVER_ID]: ");
+  Serial.println(PacoteDL[RECEIVER_ID]);
+  if(PacoteDL[8] == ID_sensor) {  // Só passa para a camada superior se for o destino final do pacote
+    Serial.println("Pacote DL é para este Nó Sensor");
+    primeiro_downlink = 1;
     Transp_radio_receive_DL();
   }
 }

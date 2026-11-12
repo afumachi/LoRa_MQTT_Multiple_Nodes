@@ -1,12 +1,11 @@
 
+'''
+
+# Framework Serial para Multiplos Nó-Sensores
+
+'''
 # ===== Bibliotecas =====
-
-
-'''
-# Serial
-
-'''
-
+import serial
 import time
 import math
 import struct
@@ -23,13 +22,18 @@ global valor_inicial_spreadingfactor, valor_inicial_bandwidth, valor_inicial_cod
 global valor_atual_spreadingfactor, valor_atual_bandwidth, valor_atual_codingrate, valor_atual_potencia_radio
 global valor_anterior_spreadingfactor, valor_anterior_bandwidth, valor_anterior_codingrate, valor_anterior_potencia_radio
 global valor_novo_spreadingfactor, valor_novo_bandwidth, valor_novo_codingrate, valor_novo_potencia_radio
-global Tamanho_pacote, taxa_canal_teorica, taxa_canal_calculada, bitrate, perda_geral, st_cmd_led_amarelo
+global taxa_canal_teorica, taxa_canal_calculada, bitrate, perda_geral, st_cmd_led_amarelo
 global medida_atual, numero_de_medidas, condicao_start, tempo_entre_medidas, perda_total, enlace_testado
 global recebe_valor_spreadingfactor, recebe_valor_bandwidth, recebe_valor_codingrate, recebe_valor_potencia_radio
 global comanda_mudar_radio, contador_pacote_DL, LSS_status, psr_geral, contador_reconfigura, confirma_mudar_radio
 global psrDL_geral, contador_perda_DL, ID_gateway, ID_sensor, Pacote_DL, pacote_recebido, estado_mqtt, radio_configurado
 global estado_lss, toa_entre_medidas, indice_dispositivo_atual, quantidade_de_medidas
 global sf_csv, bw_csv, cr_csv, pw_csv, sf_csv_new, bw_csv_new, cr_csv_new
+global comando, medidas, tempo, arquivo_log_dados, num_medidas
+global Contador_pkt_DL, num_medidas_total, tempo_entre_pacotes
+global Pacote_UL, primeiro_pacote_recebido, total_end_devices, ultimo_pacote
+global Comando_LED_amarelo, St_LED_amarelo, Tempo_inicial_RX, Tempo_limite_RX
+
 
 
 # ===== Arquivo Log globais =====
@@ -47,13 +51,30 @@ indice_dispositivo_atual = 0
 numero_de_medidas = 0
 quantidade_de_medidas = 0
 rota = [] # neste momento é um enlace ponto a ponto, que futuramente poderá ser usada para roteamento
-condicao_start = 0
-medida_atual = 0
 enlace_testado = 0
-pacote_recebido = 0
 radio_configurado = 0
 estado_lss = 0
 perda_PK_RX = 0
+
+# Variáveis de Controle
+comando = 0
+medidas = 100
+medida_atual = 0
+num_medidas = 0
+tempo = 2.0
+condicao_start = 0
+arquivo_log_dados = 0
+
+# ================ Camada MAC
+tempo_entre_pacotes = 2.0
+pacote_recebido = 0
+primeiro_pacote_recebido = 0
+Tempo_inicial_RX = 0
+Tempo_limite_RX = 0
+
+# ================ Camada Transporte
+Contador_pkt_DL = 0
+num_medidas_total = 0
 
 #Camada Física
 
@@ -65,36 +86,6 @@ bw_csv_new = 125
 cr_csv_new = 8
 pw_csv = 20
 
-# Variáveis Auxiliares
-recebe_valor_spreadingfactor = 12
-recebe_valor_bandwidth = 125
-recebe_valor_codingrate = 8
-recebe_valor_potencia_radio = 20
-
-# Configuração Inicial/Atual Rádio LoRa
-valor_inicial_spreadingfactor = 12 # Spreading Factor inicial = Maior espalhamento possível 12 (de 7 a 12)
-valor_inicial_bandwidth = 125 # Bandwidth inicial = 125kHz (1 = 125kHz | 2 = 250kHz | 3 = 500kHz)
-valor_inicial_codingrate = 8 # CodingRate Denominator = 5/4 (5/4 | 6/4 | 7/4 | 8/4)
-valor_inicial_potencia_radio = 20 # TX Power = 1 a 17 ?
-
-# Configuração Inicial/Atual Rádio LoRa
-valor_atual_spreadingfactor = 12 # Spreading Factor inicial = Maior espalhamento possível 12 (de 7 a 12)
-valor_atual_bandwidth = 125 # Bandwidth inicial = 125kHz (1 = 125kHz | 2 = 250kHz | 3 = 500kHz)
-valor_atual_codingrate = 8 # CodingRate Denominator = 5/4 (5/4 | 6/4 | 7/4 | 8/4)
-valor_atual_potencia_radio = 20 # TX Power = 1 a 17 ?
-
-# Configuração Anterior - Rádio LoRa
-valor_anterior_spreadingfactor = 12 # Spreading Factor inicial = Maior espalhamento possível 12 (de 7 a 12)
-valor_anterior_bandwidth = 125 # Bandwidth inicial = 125kHz (1 = 125kHz | 2 = 250kHz | 3 = 500kHz)
-valor_anterior_codingrate = 8 # CodingRate Denominator = 5/4 (5/4 | 6/4 | 7/4 | 8/4)
-valor_anterior_potencia_radio = 20 # TX Power = 1 a 17 ?
-
-# Configuração Nova Rádio LoRa recebida pelo Nível 6
-valor_novo_spreadingfactor = 12 # Spreading Factor inicial = Maior espalhamento possível 12 (de 7 a 12)
-valor_novo_bandwidth = 125 # Bandwidth inicial = 125kHz (1 = 125kHz | 2 = 250kHz | 3 = 500kHz)
-valor_novo_codingrate = 8 # CodingRate Denominator = 5/4 (5/4 | 6/4 | 7/4 | 8/4)
-valor_novo_potencia_radio = 20 # TX Power = 1 a 17 ?
-
 # Camada MAC
 valor_tempo = 8
 tempo_entre_medidas = 8 # original = 1 # alterado para 8 pior caso SF12/BW125k/CR8/pw20
@@ -104,6 +95,7 @@ toa_entre_medidas = 8
 inicia_lora_site_survey = 0
 comanda_mudar_radio = 0 # Comando de Downlink de mudança de configuração de rádio LoRa
 confirma_mudar_radio = 0 # Recebe Uplink da Confirmação da mudança de rádio
+ultimo_pacote = 0
 
 # Camada Transporte
 ID_gateway = 0
@@ -136,12 +128,9 @@ caminho_csv_end_devices = os.path.join(dir_nivel4, 'end_devices_net_par.csv')
 total_end_devices: int = 0
 
 #Atualiza arquivo de Parâmetros
-pasta_parametros = os.path.join(dir_nivel4, 'PARAMETROS.txt')
-parametros = open(pasta_parametros, 'w')
-parametros.write("0\n0\n12\n125\n8\n20\n8\n0\n0\n") 
-parametros.close()
+#pasta_parametros = os.path.join(dir_nivel4, 'PARAMETROS_SERIAL.txt')
 
-caminho_txt_parametros = os.path.join(pasta_parametros, "PARAMETROS_SERIAL.txt")
+caminho_txt_parametros = os.path.join(dir_nivel4, "PARAMETROS_SERIAL.txt")
 
 arquivo_cmd_lora = 'cmd_lora.txt'
 caminho_cmd_lora = os.path.join(caminho_parametros, arquivo_cmd_lora)
@@ -200,7 +189,6 @@ def ler_parametros_arquivo():
       pass
    return None
 
-# def calculo_toa_radio_lora(tamanho_do_pacote, valor_spreadingfactor, valor_bandwidth, valor_codingrate, n_preambulo=8, header_impl=False, crc_on=True, low_dr_opt=None):
 def calculo_toa_radio_lora(n_preambulo=8, header_impl=False, crc_on=True, low_dr_opt=None):
     global toa_entre_medidas, valor_atual_bandwidth, valor_atual_spreadingfactor, valor_atual_codingrate, TAMANHO_PACOTE_UL
     global sf_csv, bw_csv, cr_csv
@@ -256,7 +244,6 @@ def calculo_toa_radio_lora(n_preambulo=8, header_impl=False, crc_on=True, low_dr
 
     return toa_entre_medidas #round(tempo_entre_medidas, 2) #, round(bitrate, 2)
 
-
 # =============================================================================
 # TABELA LUT DE 72 COMBINAÇÕES INDEXADAS (EQUIVALENTE AO FIRMWARE DO ESP32)
 # =============================================================================
@@ -298,11 +285,13 @@ linha_dispositivo_atual = 0
 #========== DOWNLINK ================
 def downlink():
    global rssi_DL, rssi_UL, contador_UL, contador_DL, ultimo_pacote_DL, ultimo_pacote_UL
-   global air_quality_indicator, Pacote_DL, medida_atual, comanda_mudar_radio, estado_lss
-   global indice_dispositivo_atual, ID_sensor, quantidade_de_medidas
+   global comanda_mudar_radio, estado_lss, total_end_devices, ultimo_pacote
+   global indice_dispositivo_atual, quantidade_de_medidas
    global sf_csv, bw_csv, cr_csv, pw_csv, linha_dispositivo_atual
    global sf_csv_new, bw_csv_new, cr_csv_new
-
+   global Contador_pkt_DL, num_medidas_total, tempo_entre_pacotes, primeiro_pacote_recebido
+   global ID_sensor, ID_gateway, Pacote_DL, Pacote_UL, medida_atual, num_medidas
+   
    sf_csv = 12
    bw_csv = 125
    cr_csv = 8
@@ -348,8 +337,6 @@ def downlink():
                    
                    # Lê o comando_radio da mesma linha do CSV
                    comanda_mudar_radio = int(dispositivo['comando_radio'])
-
-                   lss_uplink_mode = int(dispositivo['lss_uplink_mode'])
                    
                    print(f"[LSS] Enviando Pacote DL para o Nó Sensor [{indice_dispositivo_atual + 1}/{len(df_devices)}]: "
                          f"Endereço 0x{ID_sensor:02X} ({ID_sensor}) | SF: {sf_csv} | BW: {bw_csv} | CR: {cr_csv} | Pot_Tx: {pw_csv} | Cmd: {comanda_mudar_radio}")
@@ -392,25 +379,25 @@ def downlink():
        Pacote_DL[2] = 0
        Pacote_DL[3] = pw_csv          # Potência de transmissão
 
-       # Camada MAC[cite: 8]
-       Pacote_DL[4] = lss_uplink_mode # Modo DL-UL ou somente UL Constante [0] = DL-UL / [1] = UL
+       # Camada MAC
+       Pacote_DL[4] = ultimo_pacote
        Pacote_DL[5] = 0
-       Pacote_DL[6] = toa_entre_medidas
+       Pacote_DL[6] = 10 * toa_entre_medidas # multiplica por 10 para eliminar uma casa decimal
        Pacote_DL[7] = comanda_mudar_radio
        estado_lss = comanda_mudar_radio
-       print("### DOWNLINK ### MÁQUINA ESTADO LORA: ", comanda_mudar_radio)
+       #print("### DOWNLINK ### MÁQUINA ESTADO LORA: ", comanda_mudar_radio)
 
-       # Camada de Rede[cite: 8]
-       Pacote_DL[8] = ID_sensor & 0xFF  
+       # Camada de Rede
+       Pacote_DL[8] = ID_sensor & 0xFF
        Pacote_DL[10] = ID_gateway
 
        # Camada de Transporte
        Pacote_DL[12] = int(medida_atual / 256)
        Pacote_DL[13] = int(medida_atual % 256)
-       Pacote_DL[14] = int(quantidade_de_medidas / 256)  # MSB
-       Pacote_DL[15] = int(quantidade_de_medidas % 256)  # LSB   
+       Pacote_DL[14] = int(num_medidas_total / 256)  # MSB
+       Pacote_DL[15] = int(num_medidas_total % 256)  # LSB   
 
-       # Camada de Aplicação[cite: 8]
+       # Camada de Aplicação
        Comando_LED_amarelo = ler_cmd_led_amarelo()
        Pacote_DL[16] = Comando_LED_amarelo
 
@@ -423,13 +410,13 @@ def downlink():
        with open(caminho_cmd_lora, 'w') as f:
            f.writelines(linhas)
 
-
        ser.reset_input_buffer()
        for Bytes_DL in range(TAMANHO_PACOTE_DL):
            ser.write(chr(Pacote_DL[Bytes_DL]).encode('latin1'))
        ser.flush()
+       #print(bytes(Pacote_DL).hex(" ")) #Imprime Pacote_DL para Debug
        time.sleep(0.05)
-       #print('Pacote = ', Contador_pkt_DL, ' | Pacote DL enviado')
+       
    except (serial.SerialException, OSError) as e:
        raise ConnectionError(f"Gateway desconectado na escrita: {e}")
 
@@ -437,19 +424,24 @@ def downlink():
 #========== UPLINK ==================
 def uplink():
    global perda_geral, rssi_DL, rssi_UL, contador_UL, ultimo_pacote_DL, quantidade_de_medidas
-   global Pacote_UL, luminosidade, confirma_mudar_radio, snr_UL, snr_DL, st_cmd_led_amarelo
+   global luminosidade, confirma_mudar_radio, snr_UL, snr_DL, st_cmd_led_amarelo
    global perda_total, contador_pacote_DL, contador_DL, medida_atual, numero_de_medidas
-   global temperatura, umidade, latitude, longitude, altitude, contador_perda_DL, pacote_recebido
+   global temperatura, umidade, latitude, longitude, altitude, contador_perda_DL
    global linha_dispositivo_atual
+
+
+   global Pacote_UL, Pacote_DL, pacote_recebido, primeiro_pacote_recebido, tempo_entre_pacotes
+   global Tempo_inicial_RX, Tempo_limite_RX, St_LED_amarelo, TAMANHO_PACOTE_UL
 
    # ======== COLETA UPLINK VIA SERIAL ========
    Pacote_UL = b''
    
    try:
-      Pacote_UL = Pacote_UL + ser.read(Tamanho_pacote - len(Pacote_UL))
+      Pacote_UL = Pacote_UL + ser.read(TAMANHO_PACOTE_UL - len(Pacote_UL))
 
       if len(Pacote_UL) == TAMANHO_PACOTE_UL:   
          print('Pacote = ', medida_atual, ' | Pacote UL recebido')
+         #print(Pacote_UL.hex(" ")) #Imprime Pacote_UL para Debug
          pacote_recebido = 1
          # Camada MAC
          confirma_mudar_radio = Pacote_UL[7]
@@ -489,7 +481,6 @@ def uplink():
 
    except (serial.SerialException, OSError) as e:
        raise ConnectionError(f"Gateway desconectado na leitura: {e}")         
-
 
 
 print("\n========== Aguardando Configuração Inicial via Painel (PARAMETROS.txt) ==========")
@@ -534,251 +525,275 @@ try:
 
     while True:
 
-        try:
+       try:
 
-
-           config_atual = ler_parametros_arquivo()
-           if config_atual:
-               comando, num_medidas_total, Tempo_entre_pacotes, _ = config_atual
-           else:
-               comando = 0
-
-           if comando == 1 and rodada_concluida:
-               rodada_concluida = False
-               estado_anterior = 0
-
-           if comando == 0:
-               if Log_dados and not Log_dados.closed:
-                   Log_dados.close()
-                   print(f'[LoRa] Teste PARADO. Arquivo de log fechado.')
-               Log_dados = None
-               j = 1
-               Contador_pkt_DL = 0
-               perda_PK_RX = 0
-               rodada_concluida = False
-               time.sleep(0.5)
-               estado_anterior = 0
-               primeiro_pacote_recebido = 0
-               continue
-
-           if comando == 2:
-               if estado_anterior != 2 and not rodada_concluida:
-                   print('[LoRa] Teste PAUSADO pelo operador.')
-                   estado_anterior = 2
-               time.sleep(0.5)
-               continue
-
-
-            
-           # AAF 23-09-2026
-           if os.path.exists(caminho_csv_end_devices):
-               try:
-                   df_devices = pd.read_csv(caminho_csv_end_devices)
-                   # O número de end devices cadastrados corresponde à quantidade de linhas no DataFrame
-                   total_end_devices = len(df_devices)
-                   #print(f"Total de end devices cadastrados: {total_end_devices}")
-               except Exception as e:
-                   print(f"Erro ao ler o arquivo End Devices CSV: {e}")
-                   total_end_devices = 0
-           else:
-               print(f"Arquivo {caminho_csv_end_devices} não foi encontrado.")
-               total_end_devices = 0
-
-           quantidade_de_medidas = num_medidas_total * total_end_devices # AAF 23-09-2026
-
-
-      if (condicao_start == 1):
-          
-          tempo_entre_medidas = valor_tempo
-          
-          
-          if (medida_atual == 0):
-              
-             radio_configurado = 1
-             inicia_lora_site_survey = 1
-             comanda_mudar_radio = 4
-             confirma_mudar_radio = 0
-             LSS_status = 1
-             print("################## LSS - Iniciando Medições LoRa #################")
-             # Gera o nome do arquivo com o novo caminho
-             filename1 = strftime(os.path.join(caminho_dados, "Rodada_Teste_%Y_%m_%d_%H-%M-%S.txt"))
-   
-             Log_dados = open(filename1, 'w')
-             print("Arquivo de log: %s" % filename1)
-             Cabecalho = 'Time stamp,Contador,DL_B0,DL_B1,DL_B2,DL_B3,DL_B4,DL_B5,DL_B6,DL_B7,DL_B8,DL_B9,DL_B10,DL_B11,DL_B12,DL_B13,DL_B14,DL_B15,DL_B16,DL_B17,DL_B18,DL_B19,DL_B20,DL_B21,DL_B22,DL_B23,DL_B24,DL_B25,DL_B26,DL_B27,DL_B28,DL_B29,UL_B0,UL_B1,UL_B2,UL_B3,UL_B4,UL_B5,UL_B6,UL_B7,UL_B8,UL_B9,UL_B10,UL_B11,UL_B12,UL_B13,UL_B14,UL_B15,UL_B16,UL_B17,UL_B18,UL_B19,UL_B20,UL_B21,UL_B22,UL_B23,UL_B24,UL_B25,UL_B26,UL_B27,UL_B28,UL_B29'
-             print(Cabecalho,file=Log_dados)
-             time.sleep(1)
-             calculo_toa_radio_lora() # chama função cálculo ToA (Time On Air)
+          config_atual = ler_parametros_arquivo()
+          if config_atual:
+              comando, num_medidas_total, Tempo_entre_pacotes, _ = config_atual
           else:
-             comanda_mudar_radio = 4 
-             confirma_mudar_radio = 0
-             LSS_status = 1
-             
-          
-          if (medida_atual < quantidade_de_medidas):
-              
-              LSS_status = 1
-              tempo_entre_medidas = valor_tempo
-             
-              medida_atual = medida_atual + 1
-              print("### LSS - Medida: ",medida_atual, "de ",quantidade_de_medidas)
+              comando = 0
 
-              if ((medida_atual) > (quantidade_de_medidas - total_end_devices)): # AAF 23-09-2026
-                  comanda_mudar_radio = 5  
+          if comando == 1 and rodada_concluida:
+              rodada_concluida = False
+              estado_anterior = 0
 
-              # =============== Camada de aplicação DL
-              Comando_LED_amarelo = 0  # Inicia apagado
-              # ================ Camada de Transporte DL
-              
-              # ================ Camada de Rede DL
-              #ID_sensor = input("Identificação do sensor = ")
-              ID_sensor = 1
-              #ID_gateway = input ("Identificação do gateway =")
-              ID_gateway = 0
-              # ================ Camada MAC DL
-              #Tempo_entre_pacotes = input("Tempo entre pacotes (s) =")
-              Tempo_gasto = 0
+          if comando == 0:
+              if Log_dados and not Log_dados.closed:
+                  Log_dados.close()
+                  print(f'[LoRa] Teste PARADO. Arquivo de log fechado.')
+              Log_dados = None
+              j = 1
+              Contador_pkt_DL = 0
+              perda_PK_RX = 0
+              rodada_concluida = False
+              time.sleep(0.5)
+              estado_anterior = 0
+              primeiro_pacote_recebido = 0
+              continue
 
-              # ================ Envio de pacote de DL
-              try:
-              # ===================== LOOP DE ENVIO DE PACOTES =============
-                    Tempo_inicio_pacote = time.time()
+          if comando == 2:
+              if estado_anterior != 2 and not rodada_concluida:
+                  print('[LoRa] Teste PAUSADO pelo operador.')
+                  estado_anterior = 2
+              time.sleep(0.5)
+              continue
 
-                    downlink()
-                                          
-                    time.sleep(toa_entre_medidas + 0.2)
-                    pacote_recebido = 0
+          if comando == 1 and not rodada_concluida:
+              if Log_dados is None or Log_dados.closed:
+                 filename1 = strftime(os.path.join(caminho_dados, "Rodada_Teste_%Y_%m_%d_%H-%M-%S.txt"))
+                 Log_dados = open(filename1, 'w')
+                 print("Novo arquivo de log criado: %s" % filename1)
+                 print(Cabecalho, file=Log_dados)
+                 j = 1
+                 perda_PK_RX = 0
 
-                    uplink()
+              if estado_anterior != 1:
+                 print('[LoRa] Teste INICIADO / RETOMADO.')
+                 estado_anterior = 1
 
-                    if (pacote_recebido == 1):
-                        
-                        Dados_DL = ''
-                        Dados_UL = ''
-                        
-                        # Monta a string dos bytes de Downlink (tamanho 20)
-                        for i in range(TAMANHO_PACOTE_DL):
-                           if i == 0:
-                              Dados_DL = str(Pacote_DL[i])
-                           else:
-                              Dados_DL = Dados_DL + ', ' + str(Pacote_DL[i])
-                              
-                        # Monta a string dos bytes de Uplink (tamanho 30)
-                        for i in range(TAMANHO_PACOTE_UL):
-                           if i == 0:
-                              Dados_UL = str(Pacote_UL[i])
-                           else:
-                              Dados_UL = Dados_UL + ', ' + str(Pacote_UL[i])
-
-                        Tempo = time.asctime()
-                        print(Tempo + ', ' + str(medida_atual) + ', Downlink: ' + Dados_DL + ' Uplink: ' + Dados_UL)
-                        
-                        # Grava Pacotes com a trava de segurança
-                        with lock_arquivo_log:
-                            Dados_log = Tempo + ',' + str(medida_atual) + ',' + Dados_DL + ',' + Dados_UL
-                            print(Dados_log, file=Log_dados)
-                            Log_dados.flush()
-
-                    elif(pacote_recebido == 0):
-
-                       perda_PK_RX += 1
-                       print('Cont = ', medida_atual, ' PERDEU PACOTE ')
-                       print('Pacotes perdidos = ', perda_PK_RX)
-                       
-                       Dados_DL = ''
-                       Dados_UL = ''
-                       
-                       # Monta o Downlink normal mesmo perdendo o pacote
-                       for i in range(TAMANHO_PACOTE_DL):
-                            if i == 0:
-                                Dados_DL = str(Pacote_DL[i])
-                            else:
-                                Dados_DL = Dados_DL + ', ' + str(Pacote_DL[i])
-                                
-                       # Preenche o Uplink perdido com '9' para todos os 30 índices
-                       for i in range(TAMANHO_PACOTE_UL):
-                            if i == 0:
-                                Dados_UL = '9'
-                            else:
-                                Dados_UL = Dados_UL + ', 9'
-
-                       Tempo = time.asctime()
-                       print(Tempo + ', ' + str(medida_atual) + ', Downlink: ' + Dados_DL + ' Uplink: ' + Dados_UL)
-
-                       # Grava Pacotes com a trava de segurança
-                       with lock_arquivo_log:
-                            Dados_log = Tempo + ',' + str(medida_atual) + ',' + Dados_DL + ',' + Dados_UL
-                            print(Dados_log, file=Log_dados)
-                            Log_dados.flush()
-                            
-
-                    Tempo_gasto = time.time() - Tempo_inicio_pacote
-               
-
-              except:
-                 Log_dados.close()
-                 print('[LoRa] Fim da Execução')
-
-             
-          else:
-             print("################## Medições LoRa Site Survey finalizadas ##################")
-             print('Pacotes enviados = ',medida_atual,' Pacotes perdidos = ',perda_PK_RX)
-             print('Tempo Entre Pacotes = ',Tempo_gasto)
-             Log_dados.close()
-             condicao_start = 0
-             medida_atual = 0
-             comanda_mudar_radio = 0
-             radio_configurado = 0
-             inicia_lora_site_survey = 0
-             confirma_mudar_radio = 0
-             enlace_testado = 0
-             perda_geral = 0
-             perda_PK_RX = 0
-             tempo_entre_medidas = 8
-             toa_entre_medidas = 8
-             perda_total = 0
-             contador_DL = 0
-             contador_UL = 0
-             LSS_status = 0
-             contador_perda_DL = 0
-             estado_lss = 0
-             #Atualiza arquivo de Parâmetros
-             path_param = os.path.join(dir_nivel4, 'PARAMETROS.txt')
-             Parametros = open(path_param, 'w')
-             Parametros.write("0\n0\n12\n125\n8\n20\n8\n0\n0\n") 
-             Parametros.close()
       
-      else:
-         medida_atual = 0
-         perda_geral = 0
-         condicao_start = 0
-         radio_configurado = 0
-         comanda_mudar_radio = 0
-         confirma_mudar_radio = 0
-         enlace_testado = 0
-         perda_geral = 0
-         perda_total = 0
-         perda_PK_RX = 0
-         contador_DL = 0
-         contador_perda_DL = 0
-         contador_UL = 0
-         tempo_entre_medidas = 8
-         toa_entre_medidas = 8
-         LSS_status = 0
-         estado_lss = 0
-         print("LSS pausado")
-         time.sleep(2)
+              # AAF 23-09-2026
+              if os.path.exists(caminho_csv_end_devices):
+                  try:
+                     df_devices = pd.read_csv(caminho_csv_end_devices)
+                     # O número de end devices cadastrados corresponde à quantidade de linhas no DataFrame
+                     total_end_devices = len(df_devices)
+                     #print(f"Total de end devices cadastrados: {total_end_devices}")
+                  except Exception as e:
+                     print(f"Erro ao ler o arquivo End Devices CSV: {e}")
+                     total_end_devices = 0
+              else:
+                  print(f"Arquivo {caminho_csv_end_devices} não foi encontrado.")
+                  total_end_devices = 0
 
-         
+              quantidade_de_medidas = num_medidas_total * total_end_devices # AAF 23-09-2026
+             
+              tempo_entre_medidas = valor_tempo
+              
+              
+              if (medida_atual == 0):
+                  
+                 radio_configurado = 1
+                 inicia_lora_site_survey = 1
+                 comanda_mudar_radio = 4
+                 confirma_mudar_radio = 0
+                 LSS_status = 1
+                 print("################## LSS - Iniciando Medições LoRa #################")
+                 # Gera o nome do arquivo com o novo caminho
+                 filename1 = strftime(os.path.join(caminho_dados, "Rodada_Teste_%Y_%m_%d_%H-%M-%S.txt"))
+       
+                 Log_dados = open(filename1, 'w')
+                 print("Arquivo de log: %s" % filename1)
+                 Cabecalho = 'Time stamp,Contador,DL_B0,DL_B1,DL_B2,DL_B3,DL_B4,DL_B5,DL_B6,DL_B7,DL_B8,DL_B9,DL_B10,DL_B11,DL_B12,DL_B13,DL_B14,DL_B15,DL_B16,DL_B17,DL_B18,DL_B19,DL_B20,DL_B21,DL_B22,DL_B23,DL_B24,DL_B25,DL_B26,DL_B27,DL_B28,DL_B29,UL_B0,UL_B1,UL_B2,UL_B3,UL_B4,UL_B5,UL_B6,UL_B7,UL_B8,UL_B9,UL_B10,UL_B11,UL_B12,UL_B13,UL_B14,UL_B15,UL_B16,UL_B17,UL_B18,UL_B19,UL_B20,UL_B21,UL_B22,UL_B23,UL_B24,UL_B25,UL_B26,UL_B27,UL_B28,UL_B29'
+                 print(Cabecalho,file=Log_dados)
+                 time.sleep(1)
+                 calculo_toa_radio_lora() # chama função cálculo ToA (Time On Air)
+              else:
+                 comanda_mudar_radio = 4 
+                 confirma_mudar_radio = 0
+                 LSS_status = 1
+                 
+              
+              if (medida_atual < quantidade_de_medidas):
+                  
+                  LSS_status = 1
+                  tempo_entre_medidas = valor_tempo
+                 
+                  medida_atual = medida_atual + 1
+
+                  if ((medida_atual) > (quantidade_de_medidas - total_end_devices)): # AAF 23-09-2026
+                      ultimo_pacote = 1
+                  else:
+                      ultimo_pacote = 0
+
+                  # (if) Tempo Gasto Para debug do try:
+                  Tempo_gasto = 0
+                  if (Tempo_gasto == 0):
+                  #try:
+                        Tempo_inicio_pacote = time.time()
+
+                        # ================ Envio de pacote de DL
+                        downlink()
+                                              
+                        time.sleep(toa_entre_medidas + 0.2)
+                        pacote_recebido = 0
+                        # ================ Recebimento de pacote de UL
+                        uplink()
+
+                        if (pacote_recebido == 1):
+                            
+                            Dados_DL = ''
+                            Dados_UL = ''
+                            
+                            # Monta a string dos bytes de Downlink (tamanho 20)
+                            for i in range(TAMANHO_PACOTE_DL):
+                               if i == 0:
+                                  Dados_DL = str(Pacote_DL[i])
+                               else:
+                                  Dados_DL = Dados_DL + ', ' + str(Pacote_DL[i])
+                                  
+                            # Monta a string dos bytes de Uplink (tamanho 30)
+                            for i in range(TAMANHO_PACOTE_UL):
+                               if i == 0:
+                                  Dados_UL = str(Pacote_UL[i])
+                               else:
+                                  Dados_UL = Dados_UL + ', ' + str(Pacote_UL[i])
+
+                            Tempo = time.asctime()
+                            print(Tempo + ', ' + str(medida_atual) + ', Downlink: ' + Dados_DL + ' Uplink: ' + Dados_UL)
+                            
+                            # Grava Pacotes com a trava de segurança
+                            with lock_arquivo_log:
+                                Dados_log = Tempo + ',' + str(medida_atual) + ',' + Dados_DL + ',' + Dados_UL
+                                print(Dados_log, file=Log_dados)
+                                Log_dados.flush()
+
+                        elif(pacote_recebido == 0):
+
+                           perda_PK_RX += 1
+                           print('Cont = ', medida_atual, ' PERDEU PACOTE ')
+                           print('Pacotes perdidos = ', perda_PK_RX)
+                           
+                           Dados_DL = ''
+                           Dados_UL = ''
+                           
+                           # Monta o Downlink normal mesmo perdendo o pacote
+                           for i in range(TAMANHO_PACOTE_DL):
+                                if i == 0:
+                                    Dados_DL = str(Pacote_DL[i])
+                                else:
+                                    Dados_DL = Dados_DL + ', ' + str(Pacote_DL[i])
+                                    
+                           # Preenche o Uplink perdido com '9' para todos os 30 índices
+                           for i in range(TAMANHO_PACOTE_UL):
+                                if i == 0:
+                                    Dados_UL = '9'
+                                else:
+                                    Dados_UL = Dados_UL + ', 9'
+
+                           Tempo = time.asctime()
+                           print(Tempo + ', ' + str(medida_atual) + ', Downlink: ' + Dados_DL + ' Uplink: ' + Dados_UL)
+
+                           # Grava Pacotes com a trava de segurança
+                           with lock_arquivo_log:
+                                Dados_log = Tempo + ',' + str(medida_atual) + ',' + Dados_DL + ',' + Dados_UL
+                                print(Dados_log, file=Log_dados)
+                                Log_dados.flush()
+                                
+                        Tempo_gasto = time.time() - Tempo_inicio_pacote
+                   
+                  #except:
+                     #Log_dados.close()
+                     #print('[LoRa] Fim da Execução')
+                 
+              else:
+                 print('Pacotes enviados = ', quantidade_de_medidas, ' Pacotes perdidos da rede = ', perda_PK_RX)
+                 print('Tempo Entre Pacotes = ', Tempo_gasto)
+                 print('Tempo Entre Pacotes = ',Tempo_gasto)
+                 if Log_dados and not Log_dados.closed:
+                     Log_dados.close()
+                     print('[LoRa] Arquivo de log salvo e fechado com sucesso.')
+                 Log_dados = None
+                 primeiro_pacote_recebido = 0
+                 perda_PK_RX = 0
+                 medida_atual = 0
+                 ultimo_pacote = 0
+                 comanda_mudar_radio = 0 
+                 # Escreve 0 automaticamente na primeira linha do PARAMETROS_SERIAL.txt para parar o teste
+                 try:
+                     if config_atual:
+                        _, m_v, t_v, s_v = config_atual
+                        with open(caminho_txt_parametros, "w") as pf:
+                           pf.write("0\n")
+                           pf.write(f"{m_v}\n")
+                           pf.write(f"{t_v}\n")
+                           pf.write(f"{s_v}\n")
+                 except Exception as e:
+                     print(f"[Erro] Falha ao atualizar PARAMETROS_SERIAL.txt para 0: {e}")
+
+                 rodada_concluida = True
+                 condicao_start = 0
+                 num_medidas_total = 0
+                 time.sleep(1)
+                 continue                 
+          
+       except (serial.SerialException, OSError, ConnectionError) as e:
+          print("\n[Aviso] Conexão Serial com o Gateway perdida! Aguardando reconexão física do cabo...")
+            
+          # Fecha a porta anterior com segurança se houver alguma referência aberta
+          try:
+              ser.close()
+          except:
+              pass
+
+           # Loop contínuo de tentativa de reconexão até o usuário plugá-lo de volta
+          while True:
+              try:
+                  time.sleep(3) # Tenta a cada 3 segundos
+                  ser = serial.Serial("COM" + str(n_serial), 115200, timeout=0.5, parity=serial.PARITY_NONE)
+                  ser.setDTR(False)
+                  ser.setRTS(False)
+                  time.sleep(0.1)
+                  ser.setDTR(True)
+                  ser.setRTS(True)
+                  time.sleep(1.5)
+                  ser.reset_input_buffer()
+                  ser.reset_output_buffer()
+                  print("\n[Sucesso] Gateway reconectado! Retomando o teste...")
+                  break # Sai do loop de reconexão e volta ao loop principal do teste
+              except (serial.SerialException, FileNotFoundError):
+                  # Enquanto o cabo estiver desligado, exibe pontos na tela sem quebrar o script
+                  print(".", end="", flush=True)
+              except Exception as ex:
+                  # Outros erros inesperados durante a tentativa
+                  print(f"\n[Erro inesperado na reconexão: {ex}]. Tentando novamente...")
+      
 # Interrompe a aplicação N2_N3 e a conexão com MQTT
 except KeyboardInterrupt:
    print("\n[Ctrl + C] Interrompido pelo usuário.")
-
+   try:
+      if 'Log_dados' in locals() and Log_dados and not Log_dados.closed:
+         Log_dados.close()
+   except:
+      pass
+   print('[LoRa] Interrompido pelo usuário')
+   # Escreve 0 automaticamente na primeira linha do PARAMETROS_SERIAL.txt para parar o teste
+   try:
+      if config_atual:
+         _, m_v, t_v, s_v = config_atual
+         with open(caminho_txt_parametros, "w") as pf:
+            pf.write("0\n")
+            pf.write(f"{m_v}\n")
+            pf.write(f"{t_v}\n")
+            pf.write(f"{s_v}\n")
+   except Exception as e:
+      print(f"[Erro] Falha ao atualizar PARAMETROS_SERIAL.txt para 0: {e}")
+   rodada_concluida = True
+   time.sleep(1)
    
-   path_param = os.path.join(dir_nivel4, 'PARAMETROS.txt')
-   Parametros = open(path_param, 'w')
-   Parametros.write("0\n0\n12\n125\n8\n20\n8\n0\n0\n") 
-   Parametros.close()   
 finally:
-
-   print("[MQTT] Desconectado do broker.")
+   try:
+      ser.close()
+      print("[Serial] Porta serial fechada.")
+   except:
+      pass

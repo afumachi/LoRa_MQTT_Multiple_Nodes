@@ -2,8 +2,9 @@
 void Mac_radio_receive_DL() { 
   // Aqui pode ser adicionado o Sleep Mode
 
-  // Modo de trabalho do LSS [DL-UL ou somente UL]
-  lss_mode = int(PacoteDL[4]);
+  intervalo = (int(PacoteDL[MAC_TIME])) * 100UL;
+
+  unsigned long ultimoTempo = millis(); // estava fora, antes do if aaf 09/11
 
   // Primeiro ciclo
     if ((recebe_comando_nova_radio == 1)){
@@ -27,12 +28,6 @@ void Mac_radio_receive_DL() {
     else if (recebe_comando_nova_radio == 6){
       //Serial.println("[LSS ONLY UL]");
       confirma_novo_radio_sensor = 6;
-    }    
-
-    if (lss_mode == 1){
-      Serial.println("[LSS UL Mode ON]");
-      confirma_novo_radio_sensor = 6;
-      uplink_mode = 1;
     }    
 
     Net_radio_receive_DL();
@@ -66,7 +61,6 @@ void Mac_radio_send_UL() {
     PacoteUL[MAC_COMMAND] = 4;
     Serial.println("MAC - PacoteUL[7] - CICLE LSS DL-UL: ");
     //Serial.println(confirma_novo_radio_sensor);
-    uplink_mode = 0;
     recebe_comando_nova_radio = 0;
     confirma_novo_radio = 0;
     confirma_novo_radio_sensor = 0;
@@ -93,15 +87,7 @@ void Mac_radio_send_UL() {
     medidasLSS = 0;
     contadorUL = 0;
     contador_perda_DL = 0;
-    uplink_mode = 0;
-    lss_mode = 0;
     primeiro_setup = 1;
-  }
-
-  if (lss_mode == 1){
-    uplink_mode = 1;
-    PacoteUL[MAC_COMMAND] = 6;
-    Serial.println("MAC - PacoteUL[7] - CICLE LSS UL COUNT: ");  
   }
 
   Phy_radio_send_UL();
