@@ -381,10 +381,15 @@ def downlink():
        Pacote_DL[3] = pw_csv          # Potência de transmissão
 
        # Camada MAC
-       Pacote_DL[4] = ultimo_pacote
+       Pacote_DL[4] = 0
        Pacote_DL[5] = 0
        Pacote_DL[6] = int(10 * time_out) # multiplica por 10 para eliminar uma casa decimal
-       Pacote_DL[7] = comanda_mudar_radio
+       if (ultimo_pacote == 0):
+          comanda_mudar_radio = comanda_mudar_radio
+       elif(ultimo_pacote == 1):
+          # Indica a rede LoRa que é o último Pacote de medidas.
+          comanda_mudar_radio = 5
+       Pacote_DL[7] = comanda_mudar_radio   
        estado_lss = comanda_mudar_radio
        #print("### DOWNLINK ### MÁQUINA ESTADO LORA: ", comanda_mudar_radio)
 
@@ -578,7 +583,7 @@ try:
               if estado_anterior != 2 and not rodada_concluida:
                   print('[LoRa] Teste PAUSADO pelo operador.')
                   estado_anterior = 2
-              time.sleep(0.1)
+              time.sleep(0.2)
               continue
 
           if comando == 1 and not rodada_concluida:

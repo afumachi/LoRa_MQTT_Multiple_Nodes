@@ -12,8 +12,8 @@ from paho.mqtt.enums import CallbackAPIVersion
 BROKER      = "www.tpm.dev.br"
 PORTA_MQTT  = 1883
 
-TOPIC_DL    = "mot_mqtt_194104/gateway/downlink"  
-TOPIC_UL    = "mot_mqtt_194104/gateway/uplink"    
+TOPIC_DL    = "mot_mqtt_wisstek/gateway1/downlink"  
+TOPIC_UL    = "mot_mqtt_wisstek/gateway1/uplink"    
 
 MQTT_QOS    = 1
 estado_mqtt = 0
