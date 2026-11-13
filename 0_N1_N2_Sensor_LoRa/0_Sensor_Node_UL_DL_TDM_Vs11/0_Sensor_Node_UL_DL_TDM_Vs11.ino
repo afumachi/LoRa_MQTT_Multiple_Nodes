@@ -11,12 +11,12 @@
 
 // Remova o comentário da linha referente ao módulo que você está utilizando e comente a outro
 
-#define PKLORA_ESP32 // HARDWARE COM ESP32
-//#define PKLORA_NODEMCU // HARDWARE COM ESP12E - NODEMCU
+//#define PKLORA_ESP32 // HARDWARE COM ESP32
+#define PKLORA_NODEMCU // HARDWARE COM ESP12E - NODEMCU
 
 // Caso tenha sensor GPS integrado ao Módulo
 //#define SEM_GPS // MoT 20 Bytes
-#define GPS_INTEGRADO // MoT 30 Bytes
+//#define GPS_INTEGRADO // MoT 30 Bytes
 
 // Caso tenha Display OLED integrado ao Módulo
 //#define OLED_INTEGRADO
@@ -34,7 +34,7 @@
 // ============= CAMADA FÍSICA
 // Parâmetros do LoRa
 #define FREQUENCY_IN_HZ       903E6    // LoRa Frequency
-#define txPower               20       // TX power in dBm, defaults to 17
+#define txPower               10       // TX power in dBm, defaults to 17
 #define spreadingFactor       12       // ranges from 6-12,default 7
 #define signalBandwidth       125E3    // signal bandwidth in Hz
 #define codingRateDenominator 8        // denominator of the coding rate
@@ -44,7 +44,7 @@
 
 // ============= CAMADA DE REDE
 // Identificação do sensor e tamanho de pacote
-byte ID_sensor = 0x03; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
+byte ID_sensor = 0x01; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
 byte ID_gateway = 0x00;    // Variável com o ID_gateway que estará no pacote de DL byte 10
 
 // ============== CAMADA DE TRANSPORTE
@@ -68,12 +68,15 @@ uint8_t SNR_DL;           // Variável inteira para enviar a SNR, que será conv
 // ============== CAMADA MAC
 
 #define TAMANHO_PACOTE_DL 20
-
+  #define TAMANHO_PACOTE_UL 30
+  /*
 #if defined(GPS_INTEGRADO)
   #define TAMANHO_PACOTE_UL 30
 #elif defined(SEM_GPS)
   #define TAMANHO_PACOTE_UL 20
 #endif
+
+  */
 
 byte PacoteDL[TAMANHO_PACOTE_DL];
 byte PacoteUL[TAMANHO_PACOTE_UL];
