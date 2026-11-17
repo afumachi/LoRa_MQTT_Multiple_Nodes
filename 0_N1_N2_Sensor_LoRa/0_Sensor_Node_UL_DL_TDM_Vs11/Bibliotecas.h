@@ -23,7 +23,11 @@
     //#include <DHT.h>             // Inclui a Biblioteca para Sensor DHT22 temperatura e humidade
 #endif
 #if defined(GPS_INTEGRADO)
+  #if defined(PKLORA_ESP32)
     #include <TinyGPS++.h>         // Inclui a Biblioteca GPS
+  #elif defined(PKLORA_NODEMCU)
+    #include <SoftwareSerial.h>
+  #endif
 #endif
 
 //=======================================================================
@@ -66,6 +70,13 @@
   #define LED_VERDE_PIN     2    // PINO D2
   #define LDR_PIN A0   // ADC1_CH0 — sensor LDR - PIN VP
 
+  // Define os pinos RX e TX (Exemplo: D1 como RX e D2 como TX)
+  const int RX_PIN = D1; // GPIO 5 (Conectar no TX do módulo GPS)
+  const int TX_PIN = D2; // GPIO 4 (Conectar no RX do módulo GPS)
+
+  // Cria a instância da serial via software
+  //SoftwareSerial SerialGPS(RX_PIN, TX_PIN);
+
 #else
   #error "Por favor, definir a placa de hardware  (PKLORA_ESP32 ou PKLORA_NODEMCU) no topo deste código!"
 #endif
@@ -91,9 +102,15 @@
 #endif
 
 #if defined(GPS_INTEGRADO)
-  // GPS Setup (UART2)
-  TinyGPSPlus gps;
-  HardwareSerial SerialGPS(2); // Use UART2
+
+  #if defined(PKLORA_ESP32)
+    // GPS Setup (UART2)
+    TinyGPSPlus gps;
+    HardwareSerial SerialGPS(2); // Use UART2
+  #elif defined(PKLORA_NODEMCU)
+    // Cria a instância da serial via software
+    SoftwareSerial SerialGPS(RX_PIN, TX_PIN);
+  #endif
 
   // Controle de leitura do GPS no Void Loop
   unsigned long millis_gps_controle = 0;

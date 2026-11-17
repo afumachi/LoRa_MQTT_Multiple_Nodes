@@ -42,17 +42,19 @@ void App_radio_send_UL() {
 
   #if defined(GPS_INTEGRADO)
 
-    if (gps.location.isValid()) {
+    #if defined(PKLORA_ESP32)
 
-      // Latitude
-      Serial.println("GPS VALIDO");    
-      lat =  (gps.location.lat()) * 1e6;
+      if (gps.location.isValid()) {
 
-      // Longitude
-      lon = (gps.location.lng()) * 1e6;
+        // Latitude
+        Serial.println("GPS VALIDO");    
+        lat =  (gps.location.lat()) * 1e6;
 
-      // Altitude (metros sem casas decimais, convertida explicitamente para inteiro de 16 bits)
-      alt = (int16_t)gps.altitude.meters();
+        // Longitude
+        lon = (gps.location.lng()) * 1e6;
+
+        // Altitude (metros sem casas decimais, convertida explicitamente para inteiro de 16 bits)
+        alt = (int16_t)gps.altitude.meters();
     }
     else{
 
@@ -67,6 +69,7 @@ void App_radio_send_UL() {
       alt = 785;
 
     }
+
       // Latitude
 
       PacoteUL[20] = (lat >> 24) & 0xFF;
@@ -83,7 +86,7 @@ void App_radio_send_UL() {
       // Altitude (metros sem casas decimais, convertida explicitamente para inteiro de 16 bits)
       PacoteUL[28] = (alt >> 8) & 0xFF; // Byte mais significativo (MSB)
       PacoteUL[29] = alt        & 0xFF; // Byte menos significativo (LSB)
-
+    #endif
 #endif
 
 #if defined(OLED_INTEGRADO)
@@ -145,7 +148,8 @@ void App_radio_send_UL() {
 
 }
 
-#if defined(GPS_INTEGRADO)
+#if defined(PKLORA_ESP32)
+  #if defined(GPS_INTEGRADO)
 
   // --- FUNÇÃO GPS ---
   void updateGPS() {
@@ -164,4 +168,8 @@ void App_radio_send_UL() {
       gps_satelite = true;
     }
   }
+
+  
+#endif
+
 #endif

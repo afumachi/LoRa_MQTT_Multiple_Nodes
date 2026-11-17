@@ -11,12 +11,12 @@
 
 // Remova o comentário da linha referente ao módulo que você está utilizando e comente a outro
 
-//#define PKLORA_ESP32 // HARDWARE COM ESP32
-#define PKLORA_NODEMCU // HARDWARE COM ESP12E - NODEMCU
+#define PKLORA_ESP32 // HARDWARE COM ESP32
+//#define PKLORA_NODEMCU // HARDWARE COM ESP12E - NODEMCU
 
 // Caso tenha sensor GPS integrado ao Módulo
 //#define SEM_GPS // MoT 20 Bytes
-//#define GPS_INTEGRADO // MoT 30 Bytes
+#define GPS_INTEGRADO // MoT 30 Bytes
 
 // Caso tenha Display OLED integrado ao Módulo
 //#define OLED_INTEGRADO
@@ -34,7 +34,7 @@
 // ============= CAMADA FÍSICA
 // Parâmetros do LoRa
 #define FREQUENCY_IN_HZ       903E6    // LoRa Frequency
-#define txPower               10       // TX power in dBm, defaults to 17
+#define txPower               20       // TX power in dBm, defaults to 17
 #define spreadingFactor       12       // ranges from 6-12,default 7
 #define signalBandwidth       125E3    // signal bandwidth in Hz
 #define codingRateDenominator 8        // denominator of the coding rate
@@ -44,7 +44,7 @@
 
 // ============= CAMADA DE REDE
 // Identificação do sensor e tamanho de pacote
-byte ID_sensor = 0x01; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
+byte ID_sensor = 0x03; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
 byte ID_gateway = 0x00;    // Variável com o ID_gateway que estará no pacote de DL byte 10
 
 // ============== CAMADA DE TRANSPORTE
@@ -68,15 +68,13 @@ uint8_t SNR_DL;           // Variável inteira para enviar a SNR, que será conv
 // ============== CAMADA MAC
 
 #define TAMANHO_PACOTE_DL 20
-  #define TAMANHO_PACOTE_UL 30
-  /*
+
 #if defined(GPS_INTEGRADO)
   #define TAMANHO_PACOTE_UL 30
 #elif defined(SEM_GPS)
   #define TAMANHO_PACOTE_UL 20
 #endif
-
-  */
+  
 
 byte PacoteDL[TAMANHO_PACOTE_DL];
 byte PacoteUL[TAMANHO_PACOTE_UL];
@@ -122,8 +120,12 @@ void setup() {
   #endif
 
   #if defined(GPS_INTEGRADO)
-    // GPS Serial: Baud 9600, Pins: RX=16, TX=17
-    SerialGPS.begin(9600, SERIAL_8N1, 16, 17);
+    #if defined(PKLORA_ESP32)
+      // GPS Serial: Baud 9600, Pins: RX=16, TX=17
+      SerialGPS.begin(9600, SERIAL_8N1, 16, 17);
+    #elif defined(PKLORA_NODEMCU)
+      SerialGPS.begin(9600);  // Comunicação com o GPS (9600 bps)
+    #endif
   #endif
 
   #if defined(OLED_INTEGRADO)
@@ -195,7 +197,7 @@ void setup() {
 //=======================================================================
 // A função loop irá executar repetidamente
 void loop() {
-    
+ 
   // --- Controle de timeout do Comando 4 ---
   // Executado a cada iteração do loop, independente de novo pacote chegar
   if (controle_ativo) {
@@ -217,13 +219,24 @@ void loop() {
   }     
 
   #if defined(GPS_INTEGRADO)
+
     // Lê os caracteres do GPS a cada 200 [ms]
     unsigned long tempo_sensores_ms = 200UL; // 200 ms
 
     if (millis() - millis_gps_controle >= tempo_sensores_ms) {        
-      updateGPS(); // Atualiza Coordenadas GPS
+
+      #if defined(PKLORA_ESP32)
+        updateGPS(); // Atualiza Coordenadas GPS     
+      #elif defined(PKLORA_NODEMCU)
+        // Repassa os dados do GPS para o Monitor Serial para teste
+        while (SerialGPS.available() > 0) {
+          Serial.write(SerialGPS.read());
+        }
+      #endif
       millis_gps_controle = millis(); 
+
     }
+
   #endif
 
   Phy_radio_receive_DL(); // Função que recebe os pacotes pelo rádio

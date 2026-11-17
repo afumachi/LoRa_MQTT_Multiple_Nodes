@@ -44,7 +44,7 @@
 
 // ============= CAMADA DE REDE
 // Identificação do sensor e tamanho de pacote
-byte ID_sensor = 0x04; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
+byte ID_sensor = 0x02; // Variável de iIdentificação do sensor que está no pacote de DL byte 8
 byte ID_gateway = 0x00;    // Variável com o ID_gateway que estará no pacote de DL byte 10
 
 // ============== CAMADA DE TRANSPORTE

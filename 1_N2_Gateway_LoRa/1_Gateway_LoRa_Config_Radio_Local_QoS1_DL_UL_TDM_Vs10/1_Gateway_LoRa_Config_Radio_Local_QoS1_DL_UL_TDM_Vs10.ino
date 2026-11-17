@@ -12,8 +12,8 @@
 
 // Remova o comentário da linha referente ao módulo que você está utilizando e comente a outro
 
-//#define PKLORA_ESP32 // #define PKLORA_ESP32
-#define PKLORA_NODEMCU // #define PKLORA_NODEMCU
+#define PKLORA_ESP32 // #define PKLORA_ESP32
+//#define PKLORA_NODEMCU // #define PKLORA_NODEMCU
 
 //=======================================================================
 // 2 - Biblioteca - chama o arquivo Biblioteca.h
@@ -28,7 +28,7 @@
 // ============= CAMADA FÍSICA
 // Parâmetros do LoRa
 #define FREQUENCY_IN_HZ       903E6    // LoRa Frequency
-#define txPower               14       // TX power in dBm, defaults to 17
+#define txPower               17       // TX power in dBm, defaults to 17
 #define spreadingFactor       12       // ranges from 6-12,default 7
 #define signalBandwidth       125E3    // signal bandwidth in Hz
 #define codingRateDenominator 8        // denominator of the coding rate
